@@ -2,7 +2,7 @@
   "name": "schtomy-podcast",
   "private": true,
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "SCh Tomy podcast audio tool (Tauri app)",
   "scripts": {
     "tauri": "tauri",

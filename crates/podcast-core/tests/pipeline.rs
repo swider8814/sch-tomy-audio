@@ -30,6 +30,7 @@ fn run_job(settings: &Settings, recording: &Path, cut: Cut) -> ProcessResult {
         cut,
         title: "Test".into(),
         year: Some(2025),
+        file_name: None,
     };
     match process(
         &common::tools(),
@@ -287,6 +288,7 @@ fn missing_intro_reports_friendly_error() {
         cut: Cut::default(),
         title: "x".into(),
         year: None,
+        file_name: None,
     };
     let err = process(
         &common::tools(),
@@ -311,6 +313,7 @@ fn unreadable_input_reports_friendly_error() {
         cut: Cut::default(),
         title: "x".into(),
         year: None,
+        file_name: None,
     };
     let err = process(
         &common::tools(),
@@ -346,6 +349,7 @@ fn cancel_stops_and_leaves_no_files() {
             cut: Cut::default(),
             title: "x".into(),
             year: None,
+            file_name: None,
         };
         process(
             &common::tools(),

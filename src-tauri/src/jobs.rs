@@ -50,7 +50,14 @@ pub struct JobView {
     pub id: u64,
     pub path: PathBuf,
     pub file_name: String,
+    /// Full ID3 title: "<sermon_title> - <title_suffix>".
     pub title: String,
+    /// Sermon title typed by the user (or read from the file name).
+    pub sermon_title: String,
+    /// Speaker and date from the file name ("Adam Szumorek - 2026.10.11").
+    pub title_suffix: String,
+    /// Planned output file name (before a possible "-2" for duplicates).
+    pub output_name: String,
     pub year: Option<i32>,
     pub duration: Option<f64>,
     pub status: Status,
@@ -88,14 +95,18 @@ impl Job {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let title = podcast_core::naming::default_title(&path);
+        let parts = podcast_core::naming::title_parts(&path);
+        let title = podcast_core::naming::join_title(&parts.sermon, &parts.suffix);
         let year = Some(podcast_core::naming::default_year(&path));
-        Self {
+        let mut job = Self {
             view: JobView {
                 id,
                 path,
                 file_name,
                 title,
+                output_name: String::new(),
+                sermon_title: parts.sermon,
+                title_suffix: parts.suffix,
                 year,
                 duration: None,
                 status: Status::Analyzing,
@@ -117,11 +128,25 @@ impl Job {
             analysis_cancel: CancelToken::new(),
             vad_generation: 0,
             vad_done: None,
-        }
+        };
+        job.refresh_output_name();
+        job
     }
 
     /// Chooses the start marker from the analysis results unless the user
     /// has set one by hand.
+    /// Output file name requested for this job (episode title based).
+    pub fn file_name(&self) -> Option<String> {
+        podcast_core::naming::episode_file_name(&self.view.sermon_title, &self.view.title_suffix)
+    }
+
+    /// Recomputes the planned output file name shown in the list.
+    pub fn refresh_output_name(&mut self) {
+        self.view.output_name = self
+            .file_name()
+            .unwrap_or_else(|| podcast_core::naming::output_file_name(&self.view.path));
+    }
+
     pub fn apply_suggestions(&mut self, threshold: f64) {
         if self.view.start_source == StartSource::Manual {
             return;
@@ -164,6 +189,19 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn title_parts_from_church_file_name() {
+        let j = Job::new(
+            2,
+            PathBuf::from("/k/TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4"),
+        );
+        assert_eq!(j.view.sermon_title, "");
+        assert_eq!(j.view.title_suffix, "Adam Szumorek - 2026.10.11");
+        assert_eq!(j.view.title, "Adam Szumorek - 2026.10.11");
+        assert_eq!(j.view.year, Some(2026));
+        assert_eq!(j.view.output_name, "2026-10-11-adam-szumorek-podcast.mp3");
     }
 
     #[test]

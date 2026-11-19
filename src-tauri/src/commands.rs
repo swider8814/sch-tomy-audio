@@ -160,10 +160,24 @@ pub fn clear_finished(app: AppHandle, state: St<'_>) {
 }
 
 #[tauri::command]
-pub fn set_title(app: AppHandle, state: St<'_>, id: u64, title: String) -> Result<(), String> {
+pub fn set_title(
+    app: AppHandle,
+    state: St<'_>,
+    id: u64,
+    sermon: String,
+    suffix: String,
+) -> Result<(), String> {
     with_job(&app, &state, id, |j| {
         editable(j)?;
-        let title: String = title.chars().take(300).collect();
+        let sermon: String = sermon.trim().chars().take(200).collect();
+        let suffix: String = suffix.trim().chars().take(200).collect();
+        let title = podcast_core::naming::join_title(&sermon, &suffix);
+        if let Some((y, _, _)) = podcast_core::naming::date_from_name(&suffix) {
+            j.view.year = Some(y);
+        }
+        j.view.sermon_title = sermon;
+        j.view.title_suffix = suffix;
+        j.refresh_output_name();
         if title != j.view.title {
             j.view.title = title;
             // The finished MP3 carries the old title: process it again.

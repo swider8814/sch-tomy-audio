@@ -24,9 +24,10 @@ For every dropped file (MP3, WAV, M4A, MP4, MOV, WEBM, ...):
    below the measured value. If MP3 encoding shifts loudness by more than
    0.2 LU, one corrective re-encode is done.
 5. **Output**: MP3 CBR 192 kb/s, 44.1 kHz, stereo (configurable), ID3v2.3
-   tags (title, artist, album, year, optional JPEG cover), saved as
-   `<slug-of-original>-podcast.mp3` next to the original or in a chosen
-   folder. Originals and existing files are never overwritten.
+   tags (title "Sermon - Speaker - YYYY.MM.DD", artist, album, year,
+   optional JPEG cover), saved as `YYYY-MM-DD-sermon-speaker-podcast.mp3`
+   (or `<slug-of-original>-podcast.mp3` when the name has no speaker/date)
+   next to the original or in a chosen folder. Originals and existing files are never overwritten.
 6. **Verification**: `ebur128` measurement of the result (LUFS, true peak,
    duration) shown in the list; deviation > 0.5 LU is a warning.
 

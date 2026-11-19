@@ -348,6 +348,7 @@ fn next_processing(app: &AppHandle, state: &AppState, slot: usize) -> Option<Pro
                         },
                         title: j.view.title.clone(),
                         year: j.view.year,
+                        file_name: j.file_name(),
                     },
                     cancel: j.cancel.clone(),
                     settings,

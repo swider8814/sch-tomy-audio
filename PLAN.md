@@ -123,8 +123,15 @@ docs/threat-model.md
 * **Existing output file:** never overwritten; `-2`, `-3` suffix is added.
 * **Year tag:** from a date in the file name (`dd.mm.yyyy` or `yyyy-mm-dd`),
   else the current year.
-* **Title:** file name without extension, `_audio` suffix removed,
-  underscores and hyphens turned into spaces; editable before start.
+* **Title (v0.1.2):** two fields, "sermon title" and "speaker - date",
+  joined as "Tytuł - Kaznodzieja - RRRR.MM.DD" like the existing Spotify
+  episodes. Both are read from file names such as "06.09.2026 - Speaker -
+  Title_audio.mp3" or "TOMY Piotrków 2026.10.11 - Speaker.mp4" (title then
+  empty and highlighted); other names fall back to the file name as title.
+* **Output name (v0.1.2):** `RRRR-MM-DD-tytul-kaznodzieja-podcast.mp3`
+  (ASCII slug, date first for sorting), falling back to the slug of the
+  original name. The spec asked for `<original>-podcast.mp3`; changed at the
+  user's request.
 * **Mono output:** loudness is measured as mono (no `dual_mono`), so the
   target applies to what ebur128 reports for the file.
 * **Concurrency:** 2 files at a time by default (setting 1 to 4).

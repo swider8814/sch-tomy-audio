@@ -8,7 +8,7 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 4. wyrównuje głośność do poziomu podcastów (-16 LUFS),
 5. zapisuje gotowy plik MP3 z tytułem i okładką.
 
-Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę oryginału z dopiskiem „-podcast”, na przykład `30-11-2025-kazanie-podcast.mp3`.
+Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i kaznodziei z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
 Aplikacja działa bez internetu i niczego nie wysyła.
 
@@ -67,7 +67,11 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
    * **propozycja, sprawdź** (żółte): automatyczna podpowiedź, którą warto sprawdzić,
    * **ręczny** (niebieskie): ustawiony przez Ciebie,
    * **brak**: początek nie zostanie przycięty.
-3. **Popraw tytuły.** Tytuł odcinka bierze się z nazwy pliku. Kliknij w pole tytułu i popraw go, jeśli trzeba.
+3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
+   * **Tytuł kazania**, np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto.
+   * **Kaznodzieja i data**, np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić.
+
+   Pod polami widzisz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
 4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Edytuj cięcie** (patrz punkt 6).
 5. Kliknij **Przetwórz wszystkie**. Postęp widać przy każdym pliku i nad listą. Możesz w każdej chwili kliknąć **Anuluj obróbkę**.
 6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.

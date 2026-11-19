@@ -113,6 +113,11 @@ td.c-result { width: 22%; }
 td.c-actions { width: 8%; text-align: right; white-space: nowrap; }
 .file-name { font-size: 0.82rem; color: var(--muted); word-break: break-all; margin-bottom: 0.25rem; }
 .title-input { width: 100%; }
+.title-input.missing { border-color: var(--warn); background: var(--warn-bg); }
+.suffix-row { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.3rem; }
+.suffix-row .hint { white-space: nowrap; }
+.suffix-input { flex: 1; min-width: 0; font-size: 0.85rem; padding: 0.2rem 0.4rem; }
+.title-preview { margin-top: 0.25rem; font-size: 0.8rem; word-break: break-word; }
 .empty { color: var(--muted); text-align: center; padding: 1.5rem; }
 
 .badge {
