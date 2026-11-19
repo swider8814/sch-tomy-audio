@@ -7,14 +7,35 @@ import { themeOf } from "./logic.js";
 
 export { themeOf };
 
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+let current = "system";
+
+/** "light" or "dark": what is on screen now. */
+export function effectiveTheme() {
+  if (current === "system") return systemDark.matches ? "dark" : "light";
+  return current;
+}
+
+/** The top bar button shows the sun in dark mode and the moon in light mode. */
+function updateToggle() {
+  const b = document.getElementById("theme-toggle");
+  if (!b) return;
+  const dark = effectiveTheme() === "dark";
+  b.dataset.effective = dark ? "dark" : "light";
+  const label = dark ? "Przełącz na jasny wygląd" : "Przełącz na ciemny wygląd";
+  b.title = label;
+  b.setAttribute("aria-label", label);
+}
+
+systemDark.addEventListener("change", updateToggle);
+
 export function applyTheme(value) {
   const theme = themeOf(value);
+  current = theme;
   const root = document.documentElement;
   if (theme === "system") delete root.dataset.theme;
   else root.dataset.theme = theme;
-  for (const b of document.querySelectorAll("[data-theme-choice]")) {
-    b.setAttribute("aria-pressed", String(b.dataset.themeChoice === theme));
-  }
+  updateToggle();
   // Title bar colour; null = follow the system. Ignored where unsupported.
   try {
     currentWindow()

@@ -61,7 +61,7 @@ Kliknij **Ustawienia** w prawym górnym rogu. Ustawienia są podzielone na trzy 
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
 * **Gdzie zapisać gotowe pliki**: „Obok oryginału” albo wybrany folder.
 * **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
-* **Wygląd**: „Jak w systemie” (aplikacja jest jasna albo ciemna tak jak Windows czy macOS), „Jasny” albo „Ciemny”. Wygląd zmienisz też szybko przyciskami na górnym pasku, obok „Ustawienia”: słońce (jasny), monitor (jak w systemie) i księżyc (ciemny).
+* **Wygląd**: „Jak w systemie” (aplikacja jest jasna albo ciemna tak jak Windows czy macOS), „Jasny” albo „Ciemny”. Wygląd zmienisz też szybko ikonką na górnym pasku, obok „Ustawienia”: księżyc włącza ciemny wygląd, słońce jasny. Żeby wrócić do „Jak w systemie”, wybierz tę opcję w Ustawieniach.
 * **Tagi MP3**: wykonawca i album zapisywane w każdym pliku.
 * W zakładce **Dźwięk** są przerwy, cisza, głośność i format MP3, a w zakładce **Zajawki i zaawansowane** zapisane zajawki serii i liczba plików obrabianych naraz. Te wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 

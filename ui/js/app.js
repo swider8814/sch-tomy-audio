@@ -5,7 +5,7 @@ import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, curr
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
-import { applyTheme } from "./theme.js";
+import { applyTheme, effectiveTheme } from "./theme.js";
 import { FILTERS, filterTest, isBusy as busy, missingSermon, startIsProposal } from "./logic.js";
 
 export const MEDIA_EXTENSIONS = ["mp3", "mp4", "m4a", "webm", "mov", "wav", "aac", "ogg", "opus", "flac", "mkv", "wma", "m4v"];
@@ -576,18 +576,18 @@ function setupButtons() {
   $("#btn-add").addEventListener("click", chooseFiles);
   setupYoutube();
   $("#btn-settings").addEventListener("click", () => openSettings());
-  for (const b of document.querySelectorAll("[data-theme-choice]")) {
-    b.addEventListener("click", async () => {
-      if (!app.settings) return;
-      applyTheme(b.dataset.themeChoice);
-      try {
-        setSettings(await invoke("save_settings", { settings: { ...app.settings, theme: b.dataset.themeChoice } }));
-      } catch (e) {
-        applyTheme(app.settings.theme);
-        toast(errorText(e));
-      }
-    });
-  }
+  // One icon: switches between light and dark ("Jak w systemie" is in the settings).
+  $("#theme-toggle").addEventListener("click", async () => {
+    if (!app.settings) return;
+    const theme = effectiveTheme() === "dark" ? "light" : "dark";
+    applyTheme(theme);
+    try {
+      setSettings(await invoke("save_settings", { settings: { ...app.settings, theme } }));
+    } catch (e) {
+      applyTheme(app.settings.theme);
+      toast(errorText(e));
+    }
+  });
   $("#btn-start").addEventListener("click", async () => {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;
     if (noTitle) {

@@ -174,8 +174,9 @@ docs/threat-model.md
   install it next to the old app; the guide tells users to remove the old
   one. The ID3 album "SCh Tomy podcast" is the podcast's name and stays.
 * **Dark mode (v0.1.4):** setting `theme` = system (default) / light /
-  dark, in Podstawowe and as a three-button switch in the top bar (both
-  save the setting). Colours are CSS variables on `:root`; dark values apply
+  dark, in Podstawowe and as one icon in the top bar (moon: switch to dark,
+  sun: switch to light, based on what is on screen; both save the setting;
+  "system" is chosen in the settings only). Colours are CSS variables on `:root`; dark values apply
   under `prefers-color-scheme: dark` unless `data-theme="light"`, and always
   with `data-theme="dark"`. The native window theme follows via
   `setTheme` (capability `core:window:allow-set-theme`), so the title bar

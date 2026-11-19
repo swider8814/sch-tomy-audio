@@ -80,11 +80,12 @@ input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accen
 .topbar .sub { margin: 0.1rem 0 0; opacity: 0.85; font-size: 0.85rem; }
 .topbar button { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.6); }
 .topbar-actions { display: flex; gap: 0.8rem; align-items: center; }
-.theme-switch { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 6px; overflow: hidden; }
-.topbar .theme-switch button { border: none; border-radius: 0; padding: 0.35rem 0.55rem; display: inline-flex; color: rgba(255, 255, 255, 0.75); }
-.topbar .theme-switch button + button { border-left: 1px solid rgba(255, 255, 255, 0.35); }
-.topbar .theme-switch button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.22); color: #fff; }
-.topbar .theme-switch button:hover:not([aria-pressed="true"]) { background: rgba(255, 255, 255, 0.1); }
+/* one icon: the moon switches to dark, the sun to light (ui/js/theme.js sets data-effective) */
+.topbar #theme-toggle { border: none; border-radius: 50%; padding: 0.4rem; display: inline-flex; color: rgba(255, 255, 255, 0.85); }
+.topbar #theme-toggle:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: #fff; }
+#theme-toggle .icon-sun { display: none; }
+#theme-toggle[data-effective="dark"] .icon-sun { display: block; }
+#theme-toggle[data-effective="dark"] .icon-moon { display: none; }
 
 main { padding: 1rem 1.25rem 2rem; }
 
