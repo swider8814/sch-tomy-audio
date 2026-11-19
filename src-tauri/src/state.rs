@@ -216,6 +216,10 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
         let s = state.clone();
         handles.push(std::thread::spawn(move || queue_saver(s)));
     }
+    {
+        let s = state.clone();
+        handles.push(std::thread::spawn(move || keep_awake_worker(s)));
+    }
     state
         .workers
         .lock()
@@ -583,5 +587,36 @@ fn queue_saver(state: Arc<AppState>) {
             }
         }
         state.save_queue(&mut last);
+    }
+}
+
+/// True while anything is processed, queued or downloaded.
+pub fn queue_busy(inner: &Inner) -> bool {
+    inner.jobs.iter().any(|j| {
+        matches!(
+            j.view.status,
+            Status::Processing | Status::Queued | Status::Downloading
+        )
+    })
+}
+
+/// Holds the "do not sleep" request while the queue is busy.
+fn keep_awake_worker(state: Arc<AppState>) {
+    let mut awake = crate::keep_awake::Awake::new();
+    let mut on = false;
+    loop {
+        let (busy, stop) = {
+            let g = state.lock();
+            (queue_busy(&g), g.shutting_down)
+        };
+        if stop {
+            awake.set(false);
+            return;
+        }
+        if busy != on {
+            awake.set(busy);
+            on = busy;
+        }
+        std::thread::sleep(Duration::from_millis(1000));
     }
 }

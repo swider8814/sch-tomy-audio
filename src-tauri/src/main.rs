@@ -3,6 +3,7 @@
 
 mod commands;
 mod jobs;
+mod keep_awake;
 mod state;
 
 use state::AppState;
