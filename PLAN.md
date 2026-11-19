@@ -198,6 +198,10 @@ docs/threat-model.md
 * **Listening to the result (v0.1.4):** `get_result_preview` decodes the
   first 90 s or last 60 s of the job's own output file to WAV (same path as
   the editor previews) and the UI plays it with WebAudio.
+* **VAD onset (v0.1.4 fix):** the "longer speech" onset is moved back over
+  weaker speech just before it (probability >= 0.2, pauses <= 0.8 s, at most
+  4 s), so a quiet greeting before a pause is not cut off; a longer pause
+  (e.g. after the teaser music) stops it. Tests in `vad.rs`.
 * **macOS signing (v0.1.4 fix):** ad hoc, without the hardened runtime.
   With it (Tauri's default), library validation refused the Python that the
   standalone yt-dlp unpacks at start ("different Team IDs"), so YouTube
