@@ -207,6 +207,23 @@ docs/threat-model.md
   standalone yt-dlp unpacks at start ("different Team IDs"), so YouTube
   downloads failed on macOS in 0.1.3. CI now starts yt-dlp, Deno and ffmpeg
   from inside the built .app on Apple Silicon.
+* **Speech clean-up (v0.1.5):** optional, off by default (`enhance_voice`):
+  `filters::VOICE_CHAIN` = 4th-order 80 Hz high-pass (rumble, 50 Hz hum)
+  plus `afftdn` (12 dB, noise tracking) on the recording only, before the
+  generated pause. Tested on speech over 50 Hz hum and pink noise.
+* **Already processed (v0.1.5):** `history.json` keeps a content fingerprint
+  (size + SHA-256 of the first and last MiB, so renamed copies match) and the
+  YouTube id of each finished recording; adding it again shows a note. Never
+  blocks processing.
+* **Watched folder (v0.1.5):** polled every 5 s (no OS watcher, so network
+  drives work). Files present when the folder is chosen are the baseline; a
+  new file is added once its size is stable between two polls. State in
+  `watch.json`, so files that arrive while the app is closed are added at
+  the next start.
+* **Moving the setup (v0.1.5):** one `.schtomy` JSON file (`bundle.rs`) with
+  settings, intro/outro/cover bytes (base64), patterns and speakers; folder
+  settings never travel. Import writes the files into `<data>/imported`,
+  keeps local folders, adds patterns/speakers and validates everything.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

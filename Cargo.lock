@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "podcast-core"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.21.7",
  "chrono",
@@ -3547,7 +3547,7 @@ dependencies = [
 
 [[package]]
 name = "schtomy-audio"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "podcast-core",
  "serde",
