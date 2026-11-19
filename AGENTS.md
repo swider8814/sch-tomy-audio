@@ -59,6 +59,17 @@ On Linux the app needs `libwebkit2gtk-4.1-dev`; Linux is only a dev platform.
   validated canonical YouTube URL after `--` and `--ignore-config`.
 * Every change in audio processing comes with a test.
 
+## Releases
+
+The owner creates each release in the GitHub UI (tag pushes are not
+available to agents). With every release give the owner, ready to paste:
+
+* the tag, e.g. `v0.1.3` (target `main`),
+* the title `SCh Tomy Podcast 0.1.3`,
+* release notes in Polish for non-technical users (what is new, fixes,
+  which installer to download, known problems), following the UI text
+  rules above (no em/en dashes or middle dots as separators, "Ty" form).
+
 ## Review guidelines
 
 Priorities when reviewing a change:
