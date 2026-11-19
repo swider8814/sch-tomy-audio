@@ -133,18 +133,31 @@ pub fn export(
             .as_deref()
             .map(|p| read_file(p, MAX_COVER_BYTES))
             .transpose()?,
-        patterns: store
-            .load_all()
-            .into_iter()
-            .map(|(m, samples)| PatternData {
-                name: m.name,
-                source: m.source,
-                samples: B64.encode(f32_to_bytes(&samples)),
-            })
-            .collect(),
+        patterns: {
+            let all = store.load_all();
+            if all.len() > MAX_PATTERNS {
+                return Err(err(format!(
+                    "too many patterns: {} (max {MAX_PATTERNS})",
+                    all.len()
+                )));
+            }
+            all
+        }
+        .into_iter()
+        .map(|(m, samples)| PatternData {
+            name: m.name,
+            source: m.source,
+            samples: B64.encode(f32_to_bytes(&samples)),
+        })
+        .collect(),
         speakers: speakers.to_vec(),
     };
-    serde_json::to_vec(&bundle).map_err(|e| err(e.to_string()))
+    let bytes = serde_json::to_vec(&bundle).map_err(|e| err(e.to_string()))?;
+    // never write a file the import would refuse
+    if bytes.len() as u64 > MAX_BUNDLE_BYTES {
+        return Err(err("bundle larger than the import limit"));
+    }
+    Ok(bytes)
 }
 
 /// Reads and checks a bundle file.
@@ -211,37 +224,35 @@ pub fn apply(
     s.outro = current.outro.clone();
     s.cover = current.cover.clone();
 
-    let write = |name: String, data: &[u8]| -> Result<PathBuf> {
-        let p = files_dir.join(name);
-        write_atomic(&p, data).map_err(|e| err(format!("{}: {e}", p.display())))?;
-        Ok(p)
-    };
-    if let Some(f) = &bundle.intro {
-        s.intro = Some(write(
-            jingle_name("intro", &f.name),
-            &decode(f, MAX_JINGLE_BYTES)?,
-        )?);
-        summary.intro = true;
-    }
-    if let Some(f) = &bundle.outro {
-        s.outro = Some(write(
-            jingle_name("outro", &f.name),
-            &decode(f, MAX_JINGLE_BYTES)?,
-        )?);
-        summary.outro = true;
-    }
-    if let Some(f) = &bundle.cover {
-        let data = decode(f, MAX_COVER_BYTES)?;
-        if data.len() < 4 || data[0..3] != [0xFF, 0xD8, 0xFF] {
-            return Err(err("cover is not a JPEG file"));
+    // 1. Decode and check everything first: a bad cover or pattern must not
+    //    leave a half-applied import behind (e.g. a replaced intro file).
+    let intro = bundle
+        .intro
+        .as_ref()
+        .map(|f| decode(f, MAX_JINGLE_BYTES).map(|d| (jingle_name("intro", &f.name), d)))
+        .transpose()?;
+    let outro = bundle
+        .outro
+        .as_ref()
+        .map(|f| decode(f, MAX_JINGLE_BYTES).map(|d| (jingle_name("outro", &f.name), d)))
+        .transpose()?;
+    let cover = match &bundle.cover {
+        Some(f) => {
+            let data = decode(f, MAX_COVER_BYTES)?;
+            if data.len() < 4 || data[0..3] != [0xFF, 0xD8, 0xFF] {
+                return Err(err("cover is not a JPEG file"));
+            }
+            Some(data)
         }
-        s.cover = Some(write("okladka.jpg".into(), &data)?);
-        summary.cover = true;
+        None => None,
+    };
+    if bundle.patterns.len() > MAX_PATTERNS {
+        return Err(err("too many patterns"));
     }
-
     let existing = store.list();
     let max_samples = (MAX_PATTERN_S * PATTERN_RATE as f64) as usize;
-    for p in bundle.patterns.iter().take(MAX_PATTERNS) {
+    let mut new_patterns = Vec::new();
+    for p in &bundle.patterns {
         let bytes = decode(
             &FileData {
                 name: p.name.clone(),
@@ -256,13 +267,39 @@ pub fn apply(
             .any(|m| m.name.trim() == p.name.trim() && (m.duration - duration).abs() < 0.01);
         if same || duration < MIN_PATTERN_S || samples.len() > max_samples {
             summary.patterns_skipped += 1;
-            continue;
+        } else {
+            new_patterns.push((p, samples));
         }
+    }
+
+    // 2. Apply.
+    let write = |name: String, data: &[u8]| -> Result<PathBuf> {
+        let p = files_dir.join(name);
+        write_atomic(&p, data).map_err(|e| err(format!("{}: {e}", p.display())))?;
+        Ok(p)
+    };
+    if let Some((name, data)) = intro {
+        s.intro = Some(write(name, &data)?);
+        summary.intro = true;
+    }
+    if let Some((name, data)) = outro {
+        s.outro = Some(write(name, &data)?);
+        summary.outro = true;
+    }
+    if let Some(data) = cover {
+        s.cover = Some(write("okladka.jpg".into(), &data)?);
+        summary.cover = true;
+    }
+    for (p, samples) in new_patterns {
         store.add(&p.name, &p.source, &samples)?;
         summary.patterns_added += 1;
     }
 
-    for name in bundle.speakers.iter().take(MAX_SPEAKERS_IN).rev() {
+    // In the exported (most recent first) order, after this computer's names.
+    for name in bundle.speakers.iter().take(MAX_SPEAKERS_IN) {
+        if speakers.len() >= crate::speakers::MAX_SPEAKERS {
+            break;
+        }
         let n: String = name
             .trim()
             .chars()
@@ -272,12 +309,10 @@ pub fn apply(
             .iter()
             .any(|k| k.to_lowercase() == n.to_lowercase());
         if !n.is_empty() && !known {
-            // appended at the end: the speakers of this computer stay first
             speakers.push(n);
             summary.speakers_added += 1;
         }
     }
-    speakers.truncate(crate::speakers::MAX_SPEAKERS);
 
     Ok((s.sanitized(), summary))
 }
@@ -343,6 +378,12 @@ mod tests {
         assert!(s.enhance_voice);
         assert_eq!(store_b.list().len(), 2);
         assert_eq!(speakers, ["Jan Nowak", "Rafał Piekarski"]);
+        // speakers keep the exported (most recent first) order
+        let mut b2 = bundle.clone();
+        b2.speakers = vec!["Nowszy".into(), "Starszy".into()];
+        let mut sp = vec![];
+        apply(&b2, &current, &files_dir, &store_b, &mut sp).unwrap();
+        assert_eq!(sp, ["Nowszy", "Starszy"]);
         assert_eq!(
             sum,
             ImportSummary {
@@ -414,8 +455,12 @@ mod tests {
             patterns: vec![],
             speakers: vec![],
         };
-        // a cover that is not a JPEG is refused
+        // a cover that is not a JPEG is refused, and nothing is written
         assert!(apply(&bundle, &Settings::default(), d.path(), &store, &mut vec![]).is_err());
+        assert!(
+            !d.path().join("intro.bin").exists(),
+            "intro written before validation"
+        );
         let bundle = Bundle {
             cover: None,
             ..bundle

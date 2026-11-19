@@ -149,38 +149,47 @@ fn is_our_output(p: &Path) -> bool {
 
 #[tauri::command]
 pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
-    add_paths(&app, &state, expand(paths))
+    add_paths(&app, state.inner(), expand(paths))
 }
 
 /// Adds recordings (skipping ones already on the list) and marks those
 /// processed before. Used by `add_files` and the watched folder.
-pub fn add_paths(app: &AppHandle, state: &AppState, files: Vec<PathBuf>) -> usize {
-    // Fingerprints are read without holding the lock.
-    let files: Vec<(PathBuf, Option<String>)> = files
-        .into_iter()
-        .map(|f| {
-            let key = podcast_core::history::file_key(&f).ok();
-            (f, key)
-        })
-        .collect();
+pub fn add_paths(app: &AppHandle, state: &Arc<AppState>, files: Vec<PathBuf>) -> usize {
     let mut g = state.lock();
-    let mut added = 0;
-    for (f, key) in files {
+    let mut new: Vec<(u64, PathBuf)> = Vec::new();
+    for f in files {
         if g.jobs.iter().any(|j| j.view.path == f) {
             continue;
         }
         let id = g.next_id;
         g.next_id += 1;
-        let mut job = Job::new(id, f);
-        if let Some(key) = key {
-            job.view.duplicate = podcast_core::history::find(&g.history, &[key]).map(Into::into);
-        }
-        g.jobs.push(job);
-        added += 1;
+        new.push((id, f.clone()));
+        g.jobs.push(Job::new(id, f));
     }
     emit_jobs(app, &g);
     drop(g);
     state.wake.notify_all();
+    let added = new.len();
+    // "Processed before" check in the background: each fingerprint reads up to
+    // 2 MiB, which must not hold up the window for a big or networked folder.
+    if !new.is_empty() {
+        let (app, state) = (app.clone(), state.clone());
+        std::thread::spawn(move || {
+            for (id, path) in new {
+                let Ok(key) = podcast_core::history::file_key(&path) else {
+                    continue;
+                };
+                let mut g = state.lock();
+                let dup = podcast_core::history::find(&g.history, &[key]).map(Into::into);
+                if dup.is_some() {
+                    if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == id) {
+                        j.view.duplicate = dup;
+                        emit_job(&app, &j.view);
+                    }
+                }
+            }
+        });
+    }
     added
 }
 
@@ -568,10 +577,16 @@ pub fn export_settings(state: St<'_>, path: String) -> Result<String, String> {
         env!("CARGO_PKG_VERSION"),
     )
     .map_err(|e| {
-        format!(
-            "Nie udało się przygotować pliku z ustawieniami. Sprawdź, czy pliki intro, outro i okładki są na swoim miejscu. ({})",
-            e.details
-        )
+        if e.details.contains("too many patterns") {
+            "Za dużo zapisanych zajawek (ponad 200). Usuń niepotrzebne w zakładce Zajawki i zaawansowane i spróbuj ponownie.".to_string()
+        } else if e.details.contains("import limit") {
+            "Plik z ustawieniami byłby za duży (ponad 300 MB). Użyj mniejszych plików intro i outro.".to_string()
+        } else {
+            format!(
+                "Nie udało się przygotować pliku z ustawieniami. Sprawdź, czy pliki intro, outro i okładki są na swoim miejscu. ({})",
+                e.details
+            )
+        }
     })?;
     podcast_core::settings::write_atomic(&path, &bytes)
         .map_err(|_| "Nie udało się zapisać pliku. Wybierz inny folder.".to_string())?;
@@ -617,17 +632,32 @@ pub fn import_settings(
     settings
         .save(&state.settings_path)
         .map_err(|e| format!("{} ({})", e.user_message(), e.details))?;
-    state.reload_patterns();
     {
+        // The new settings are in place before any worker wakes up; a new
+        // search window also invalidates the VAD proposals (as in save_settings).
         let mut g = state.lock();
+        let window_changed = g.settings.search_window_s != settings.search_window_s;
         g.settings = settings.clone();
         g.settings_note = None;
+        if window_changed {
+            for j in g.jobs.iter_mut() {
+                if matches!(
+                    j.view.status,
+                    Status::Waiting | Status::Cancelled | Status::Error | Status::Analyzing
+                ) && !j.needs_download()
+                {
+                    j.vad_generation += 1;
+                    j.needs_analysis = true;
+                }
+            }
+        }
         g.speakers = speakers;
         let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
         let _ = app.emit("speakers", &g.speakers);
-        emit_jobs(&app, &g);
     }
-    state.wake.notify_all();
+    // re-searches teasers with the new patterns and settings, then wakes workers
+    state.reload_patterns();
+    emit_jobs(&app, &state.lock());
     let g = state.lock();
     Ok(ImportResult {
         settings,

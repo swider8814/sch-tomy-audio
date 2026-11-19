@@ -700,9 +700,18 @@ fn watch_worker(app: AppHandle, state: Arc<AppState>) {
         if !dir.is_dir() {
             continue; // e.g. a disconnected network drive; try again later
         }
-        let files: Vec<(PathBuf, u64)> = crate::commands::media_in(&dir)
+        let files: Vec<(PathBuf, u64, u64)> = crate::commands::media_in(&dir)
             .into_iter()
-            .filter_map(|f| std::fs::metadata(&f).ok().map(|m| (f, m.len())))
+            .filter_map(|f| {
+                let m = std::fs::metadata(&f).ok()?;
+                let mtime = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                Some((f, m.len(), mtime))
+            })
             .collect();
         let ready = {
             let mut w = state.watch.lock().unwrap_or_else(|e| e.into_inner());

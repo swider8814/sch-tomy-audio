@@ -2,9 +2,11 @@
 //! list automatically.
 //!
 //! Files already in the folder when it is chosen are not added (they are the
-//! "seen" baseline). A new file is added only once its size has stayed the
-//! same between two polls, so a recording that is still being copied or
-//! recorded is not picked up half-written. The state is kept in a small JSON
+//! "seen" baseline). A new file is added only once its size and modification
+//! time have not changed for [`STABLE_POLLS`] polls in a row (30 s at the
+//! app's 5 s interval), so a recording that is still being copied or
+//! recorded, even with short stalls on a network drive, is not picked up
+//! half-written. The state is kept in a small JSON
 //! file, so files that arrive while the app is closed are added at the next
 //! start.
 
@@ -20,10 +22,14 @@ pub struct WatchState {
     pub dir: Option<PathBuf>,
     /// Files already handled (baseline or added).
     pub seen: BTreeSet<PathBuf>,
-    /// Size of each new file at the previous poll (not saved).
+    /// Each new file's (size, modification time) at the previous poll and
+    /// how many polls in a row it has stayed the same (not saved).
     #[serde(skip)]
-    pending: HashMap<PathBuf, u64>,
+    pending: HashMap<PathBuf, ((u64, u64), u32)>,
 }
+
+/// Polls a new file must stay unchanged before it is added.
+pub const STABLE_POLLS: u32 = 6;
 
 impl WatchState {
     /// Switches to `dir`. When it differs from the current folder, every file
@@ -38,28 +44,31 @@ impl WatchState {
         true
     }
 
-    /// One poll with the folder's media files and their sizes. Returns the
-    /// files that are new and finished (size unchanged since the last poll),
-    /// in name order; they are marked as seen. Files that disappeared are
-    /// forgotten, so the saved state stays small.
-    pub fn poll(&mut self, current: &[(PathBuf, u64)]) -> Vec<PathBuf> {
-        let present: BTreeSet<&PathBuf> = current.iter().map(|(p, _)| p).collect();
+    /// One poll with the folder's media files, their sizes and modification
+    /// times (any monotonic number). Returns the files that are new and
+    /// finished (unchanged for [`STABLE_POLLS`] polls), in name order; they
+    /// are marked as seen. Files that disappeared are forgotten, so the saved
+    /// state stays small.
+    pub fn poll(&mut self, current: &[(PathBuf, u64, u64)]) -> Vec<PathBuf> {
+        let present: BTreeSet<&PathBuf> = current.iter().map(|(p, _, _)| p).collect();
         self.seen.retain(|p| present.contains(p));
         self.pending.retain(|p, _| present.contains(p));
         let mut ready = Vec::new();
-        for (path, size) in current {
+        for (path, size, mtime) in current {
             if self.seen.contains(path) {
                 continue;
             }
-            match self.pending.get(path) {
-                Some(prev) if *prev == *size && *size > 0 => {
-                    self.pending.remove(path);
-                    self.seen.insert(path.clone());
-                    ready.push(path.clone());
-                }
-                _ => {
-                    self.pending.insert(path.clone(), *size);
-                }
+            let stamp = (*size, *mtime);
+            let stable = match self.pending.get(path) {
+                Some((prev, n)) if *prev == stamp => n + 1,
+                _ => 0,
+            };
+            if stable >= STABLE_POLLS && *size > 0 {
+                self.pending.remove(path);
+                self.seen.insert(path.clone());
+                ready.push(path.clone());
+            } else {
+                self.pending.insert(path.clone(), (stamp, stable));
             }
         }
         ready.sort();
@@ -87,6 +96,17 @@ mod tests {
         PathBuf::from(format!("/Nagrania ąę/{s}"))
     }
 
+    /// Polls until something is ready (at most `max` polls).
+    fn settle(w: &mut WatchState, files: &[(PathBuf, u64, u64)], max: u32) -> (u32, Vec<PathBuf>) {
+        for n in 1..=max {
+            let r = w.poll(files);
+            if !r.is_empty() {
+                return (n, r);
+            }
+        }
+        (max, vec![])
+    }
+
     #[test]
     fn baseline_is_not_added() {
         let mut w = WatchState::default();
@@ -95,44 +115,47 @@ mod tests {
             !w.set_dir(Some(p("")), &[]),
             "same folder keeps the baseline"
         );
-        for _ in 0..3 {
-            assert!(w.poll(&[(p("stare.mp3"), 100)]).is_empty());
+        for _ in 0..10 {
+            assert!(w.poll(&[(p("stare.mp3"), 100, 1)]).is_empty());
         }
     }
 
     #[test]
-    fn new_file_is_added_once_its_size_is_stable() {
+    fn new_file_is_added_once_it_stops_changing() {
         let mut w = WatchState::default();
         w.set_dir(Some(p("")), &[]);
-        assert!(
-            w.poll(&[(p("nowe kazanie.mp3"), 10)]).is_empty(),
-            "first sight"
-        );
-        assert!(
-            w.poll(&[(p("nowe kazanie.mp3"), 500)]).is_empty(),
-            "still growing"
-        );
-        assert_eq!(
-            w.poll(&[(p("nowe kazanie.mp3"), 500)]),
-            [p("nowe kazanie.mp3")]
-        );
-        assert!(
-            w.poll(&[(p("nowe kazanie.mp3"), 500)]).is_empty(),
-            "added only once"
-        );
+        let f = p("nowe kazanie.mp3");
+        assert!(w.poll(&[(f.clone(), 10, 1)]).is_empty(), "first sight");
+        assert!(w.poll(&[(f.clone(), 500, 2)]).is_empty(), "still growing");
+        // a stall shorter than the window, then more data: not added
+        for _ in 0..(STABLE_POLLS - 1) {
+            assert!(w.poll(&[(f.clone(), 500, 2)]).is_empty(), "short stall");
+        }
+        assert!(w.poll(&[(f.clone(), 800, 3)]).is_empty(), "growing again");
+        // unchanged for the whole window: added exactly once
+        let (n, ready) = settle(&mut w, &[(f.clone(), 800, 3)], 20);
+        assert_eq!(ready, [f.clone()]);
+        assert_eq!(n, STABLE_POLLS);
+        assert!(w.poll(&[(f, 800, 3)]).is_empty(), "added only once");
+        // the modification time alone also counts as a change
+        let g = p("drugie.mp3");
+        for _ in 0..STABLE_POLLS {
+            assert!(w.poll(&[(g.clone(), 5, 1)]).is_empty());
+        }
+        assert!(w.poll(&[(g.clone(), 5, 2)]).is_empty(), "touched");
         // an empty file is never added
-        assert!(w.poll(&[(p("pusty.mp3"), 0)]).is_empty());
-        assert!(w.poll(&[(p("pusty.mp3"), 0)]).is_empty());
+        let (_, ready) = settle(&mut w, &[(p("pusty.mp3"), 0, 1)], 20);
+        assert!(ready.is_empty());
     }
 
     #[test]
     fn several_files_come_in_name_order_and_vanished_ones_are_forgotten() {
         let mut w = WatchState::default();
         w.set_dir(Some(p("")), &[]);
-        let files = [(p("b.mp3"), 5), (p("a.mp3"), 5)];
-        w.poll(&files);
-        assert_eq!(w.poll(&files), [p("a.mp3"), p("b.mp3")]);
-        w.poll(&[(p("a.mp3"), 5)]);
+        let files = [(p("b.mp3"), 5, 1), (p("a.mp3"), 5, 1)];
+        let (_, ready) = settle(&mut w, &files, 20);
+        assert_eq!(ready, [p("a.mp3"), p("b.mp3")]);
+        w.poll(&[(p("a.mp3"), 5, 1)]);
         assert!(!w.seen.contains(&p("b.mp3")));
     }
 

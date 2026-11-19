@@ -78,10 +78,23 @@ pub fn find<'a>(list: &'a [Entry], keys: &[String]) -> Option<&'a Entry> {
 }
 
 /// Adds an entry first; older entries with the same keys are replaced.
-pub fn record(list: &mut Vec<Entry>, entry: Entry) {
+pub fn record(list: &mut Vec<Entry>, mut entry: Entry) {
     if entry.keys.is_empty() {
         return;
     }
+    // Entries sharing a key are the same recording: keep all their other
+    // keys (e.g. the YouTube id of a download later processed as a file).
+    let aliases: Vec<String> = list
+        .iter()
+        .filter(|e| e.keys.iter().any(|k| entry.keys.contains(k)))
+        .flat_map(|e| e.keys.iter().cloned())
+        .collect();
+    for k in aliases {
+        if !entry.keys.contains(&k) {
+            entry.keys.push(k);
+        }
+    }
+    entry.keys.truncate(8);
     list.retain(|e| !e.keys.iter().any(|k| entry.keys.contains(k)));
     list.insert(0, entry);
     list.truncate(MAX_ENTRIES);
@@ -96,7 +109,7 @@ pub fn load(path: &Path) -> Vec<Entry> {
     list.retain(|e| !e.keys.is_empty());
     for e in &mut list {
         e.output = e.output.chars().take(260).collect();
-        e.keys.truncate(4);
+        e.keys.truncate(8);
     }
     list.truncate(MAX_ENTRIES);
     list
@@ -188,6 +201,31 @@ mod tests {
         assert_eq!(load(&p), list);
         std::fs::write(&p, b"[{broken").unwrap();
         assert!(load(&p).is_empty());
+    }
+
+    #[test]
+    fn reprocessing_keeps_the_youtube_alias() {
+        let mut list = Vec::new();
+        let yt = youtube_key("dQw4w9WgXcQ");
+        record(
+            &mut list,
+            Entry {
+                keys: vec!["f:1:aa".into(), yt.clone()],
+                processed_at: 1,
+                output: "a.mp3".into(),
+            },
+        );
+        // the downloaded file processed again as a plain file: only its file key
+        record(
+            &mut list,
+            Entry {
+                keys: vec!["f:1:aa".into()],
+                processed_at: 2,
+                output: "a-2.mp3".into(),
+            },
+        );
+        assert_eq!(list.len(), 1);
+        assert_eq!(find(&list, &[yt]).unwrap().processed_at, 2);
     }
 
     #[test]

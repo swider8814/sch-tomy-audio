@@ -219,7 +219,8 @@ docs/threat-model.md
   blocks processing.
 * **Watched folder (v0.1.5):** polled every 5 s (no OS watcher, so network
   drives work). Files present when the folder is chosen are the baseline; a
-  new file is added once its size is stable between two polls. State in
+  new file is added once its size and modification time have not changed
+  for 6 polls (30 s), so stalled network copies are not picked up early. State in
   `watch.json`, so files that arrive while the app is closed are added at
   the next start.
 * **Moving the setup (v0.1.5):** one `.schtomy` JSON file (`bundle.rs`) with
