@@ -32,12 +32,20 @@ pub struct YtTools {
 }
 
 impl YtTools {
-    /// yt-dlp and Deno next to the executable (sidecars), env override or PATH.
+    /// yt-dlp and Deno next to the executable (sidecars), env override or
+    /// PATH. Both are required. `deno` stays an `Option` only so tests can
+    /// run a fake yt-dlp without it.
     pub fn locate() -> Result<YtTools> {
         let ytdlp = find_tool_path("yt-dlp", ENV_YTDLP)
             .map_err(|e| CoreError::new(ErrorKind::YouTubeToolMissing, e.details))?;
-        let deno = find_tool_path("deno", ENV_DENO).ok();
-        Ok(YtTools { ytdlp, deno })
+        // YouTube needs a JavaScript runtime (yt-dlp EJS); without the
+        // bundled Deno downloads would fail later with a misleading error.
+        let deno = find_tool_path("deno", ENV_DENO)
+            .map_err(|e| CoreError::new(ErrorKind::YouTubeToolMissing, e.details))?;
+        Ok(YtTools {
+            ytdlp,
+            deno: Some(deno),
+        })
     }
 }
 
