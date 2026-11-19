@@ -45,5 +45,7 @@ When reviewing changes, check in particular:
    are pinned by commit SHA, the default token is read-only and only the
    release job gets `contents: write`. `Cargo.lock` and `package-lock.json`
    are committed and CI uses `--locked` / `npm ci`.
-6. **Network.** No network access except the explicit YouTube download of
-   stage 2. No telemetry, no update checks.
+6. **Network.** No network access except the YouTube download started by
+   the user (`youtube.rs`: link validated to a canonical video URL, passed
+   after `--`, `--ignore-config`, fixed output folder and name). No
+   telemetry, no update checks.

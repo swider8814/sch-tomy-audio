@@ -154,4 +154,8 @@ docs/threat-model.md
 7. UI: list, drop zone, settings, waveform editor, patterns.
 8. CI: tests + bundles on Windows/macOS, release on tags.
 9. README (technical), INSTRUKCJA.md (Polish user guide).
-10. Stage 2 (after stage 1 is merged/tested): YouTube link via bundled yt-dlp.
+10. Stage 2 (v0.1.2): YouTube link via bundled yt-dlp 2026.10.26 + Deno 2.9.7
+    (yt-dlp needs a JavaScript runtime for YouTube; Deno is its default).
+    Audio only (`bestaudio[ext=m4a]/bestaudio`, no conversion), saved to
+    `Downloads/SCh Tomy YouTube`, one download at a time; title and date
+    prefilled from the video, the speaker is typed by the user.

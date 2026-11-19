@@ -172,7 +172,7 @@ export function missingSermon(job) {
 }
 
 function busy(job) {
-  return job.status === "processing" || job.status === "queued";
+  return job.status === "processing" || job.status === "queued" || job.status === "downloading";
 }
 
 function updateRow(job) {
@@ -184,15 +184,22 @@ function updateRow(job) {
   if (document.activeElement !== r.suffix) r.suffix.value = job.titleSuffix ?? "";
   r.sermon.disabled = busy(job);
   r.suffix.disabled = busy(job);
-  r.sermon.classList.toggle("missing", missingSermon(job) && !["done", "processing", "queued"].includes(job.status));
-  r.preview.replaceChildren(
-    h("div", {}, `Tytuł w tagach MP3: ${job.title || "(pusty)"}`),
-    job.status === "done" ? null : h("div", {}, `Nazwa pliku: ${job.outputName ?? ""}`),
+  r.sermon.classList.toggle(
+    "missing",
+    missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
   );
+  const previewLines = [];
+  if (job.status !== "downloading") {
+    previewLines.push(h("div", {}, `Tytuł w tagach MP3: ${job.title || "(pusty)"}`));
+    if (job.status !== "done" && job.outputName) previewLines.push(h("div", {}, `Nazwa pliku: ${job.outputName}`));
+  }
+  r.preview.replaceChildren(...previewLines);
 
   // start marker
   r.start.replaceChildren();
-  if (job.status === "analyzing") {
+  if (job.status === "downloading" || (job.sourceUrl && job.duration == null && job.status === "error")) {
+    r.start.append(h("span", { class: "hint" }, "Najpierw pobieranie z YouTube"));
+  } else if (job.status === "analyzing") {
     r.start.append(h("span", { class: "hint" }, "Szukam początku kazania..."));
   } else {
     const label = startSourceLabel(job);
@@ -219,6 +226,13 @@ function updateRow(job) {
   // status
   r.status.replaceChildren();
   const st = h("div", { class: "stack" }, h("span", { class: `badge ${job.status}` }, STATUS_LABELS[job.status] ?? job.status));
+  if (job.status === "downloading") {
+    const pct = Math.round((job.progress ?? 0) * 100);
+    st.append(
+      h("div", { class: "bar" }, h("div", { style: `width:${pct}%` })),
+      h("div", { class: "hint" }, pct > 0 ? `Pobieranie dźwięku (${pct}%)` : "Łączenie z YouTube..."),
+    );
+  }
   if (job.status === "processing") {
     const pct = Math.round((job.progress ?? 0) * 100);
     st.append(
@@ -285,6 +299,7 @@ function renderToolbar() {
   const processing = count("processing");
   const queued = count("queued");
   const analyzing = count("analyzing");
+  const downloading = count("downloading");
   const proposals = jobs.filter(
     (j) => ["waiting", "cancelled"].includes(j.status) && ["vadProposal", "patternProposal"].includes(j.startSource),
   ).length;
@@ -295,6 +310,7 @@ function renderToolbar() {
   if (processing + queued) parts.push(`w obróbce: ${processing + queued}`);
   if (errors) parts.push(`błędy: ${errors}`);
   if (analyzing) parts.push(`analiza: ${analyzing}`);
+  if (downloading) parts.push(`pobieranie z YouTube: ${downloading}`);
   const noTitle = jobs.filter((j) => ["waiting", "cancelled", "analyzing"].includes(j.status) && missingSermon(j)).length;
   const sentences = [];
   if (parts.length) sentences.push(`${parts.join(", ")}.`);
@@ -333,6 +349,26 @@ async function addPaths(paths) {
     else toast(`Dodano ${added} ${plikow(added)}. Trwa analiza początku nagrań.`);
   } catch (e) {
     toast(errorText(e));
+  }
+}
+
+async function addYoutube(ev) {
+  ev.preventDefault();
+  const input = $("#yt-url");
+  const url = input.value.trim();
+  if (!url) {
+    toast("Wklej link do filmu na YouTube.");
+    return;
+  }
+  $("#yt-add").disabled = true;
+  try {
+    const dir = await invoke("add_youtube", { url });
+    input.value = "";
+    toast(`Pobieram dźwięk z YouTube. Plik zapiszę w folderze: ${dir}`, 6000);
+  } catch (e) {
+    toast(errorText(e), 6000);
+  } finally {
+    $("#yt-add").disabled = false;
   }
 }
 
@@ -402,6 +438,7 @@ function setupCloseGuard() {
 
 function setupButtons() {
   $("#btn-add").addEventListener("click", chooseFiles);
+  $("#yt-form").addEventListener("submit", addYoutube);
   $("#btn-settings").addEventListener("click", () => openSettings());
   $("#btn-start").addEventListener("click", async () => {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;

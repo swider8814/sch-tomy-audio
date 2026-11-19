@@ -31,6 +31,10 @@ For every dropped file (MP3, WAV, M4A, MP4, MOV, WEBM, ...):
 6. **Verification**: `ebur128` measurement of the result (LUFS, true peak,
    duration) shown in the list; deviation > 0.5 LU is a warning.
 
+YouTube links (stage 2): the audio is downloaded with the bundled yt-dlp
+(Deno as its JavaScript runtime) into `Downloads/SCh Tomy YouTube` and then
+processed like a dropped file (`crates/podcast-core/src/youtube.rs`).
+
 ## Repository layout
 
 | Path | |
@@ -100,4 +104,5 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Privacy
 
-No telemetry and no network access. Everything runs locally.
+No telemetry. The only network access is the YouTube download started by
+the user. Everything else runs locally.

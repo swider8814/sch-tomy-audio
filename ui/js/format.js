@@ -90,6 +90,7 @@ export const STAGE_LABELS = {
 };
 
 export const STATUS_LABELS = {
+  downloading: "Pobieranie z YouTube",
   analyzing: "Analiza pliku",
   waiting: "Czeka",
   queued: "W kolejce",

@@ -10,6 +10,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
+    /// YouTube link: the audio is being downloaded.
+    Downloading,
     /// Added, analysis not finished yet.
     Analyzing,
     /// Ready, waiting for "Przetwórz wszystkie".
@@ -58,6 +60,8 @@ pub struct JobView {
     pub title_suffix: String,
     /// Planned output file name (before a possible "-2" for duplicates).
     pub output_name: String,
+    /// YouTube link the recording comes from (canonical form).
+    pub source_url: Option<String>,
     pub year: Option<i32>,
     pub duration: Option<f64>,
     pub status: Status,
@@ -87,6 +91,8 @@ pub struct Job {
     /// the result is kept when only teaser patterns change.
     pub vad_generation: u64,
     pub vad_done: Option<u64>,
+    /// A YouTube download for this job is running.
+    pub download_running: bool,
 }
 
 impl Job {
@@ -105,6 +111,7 @@ impl Job {
                 file_name,
                 title,
                 output_name: String::new(),
+                source_url: None,
                 sermon_title: parts.sermon,
                 title_suffix: parts.suffix,
                 year,
@@ -128,6 +135,7 @@ impl Job {
             analysis_cancel: CancelToken::new(),
             vad_generation: 0,
             vad_done: None,
+            download_running: false,
         };
         job.refresh_output_name();
         job
@@ -135,6 +143,47 @@ impl Job {
 
     /// Chooses the start marker from the analysis results unless the user
     /// has set one by hand.
+    /// A job for a YouTube video: downloaded first, then analysed.
+    pub fn new_youtube(id: u64, video_id: &str) -> Self {
+        let url = podcast_core::youtube::canonical_url(video_id);
+        let mut job = Job::new(id, PathBuf::new());
+        job.view.file_name = format!("YouTube: {url}");
+        job.view.title = String::new();
+        job.view.sermon_title = String::new();
+        job.view.title_suffix = String::new();
+        job.view.year = None;
+        job.view.source_url = Some(url);
+        job.view.status = Status::Downloading;
+        job.view.output_name = String::new();
+        job.needs_analysis = false;
+        job
+    }
+
+    /// The YouTube download finished: switch to the downloaded file and
+    /// prefill the title from the video (title, upload date).
+    pub fn downloaded(&mut self, path: PathBuf, info: &podcast_core::youtube::VideoInfo) {
+        self.view.file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.view.path = path;
+        self.view.sermon_title = info.title.trim().chars().take(200).collect();
+        self.view.title_suffix = info.dotted_date().unwrap_or_default();
+        self.view.title =
+            podcast_core::naming::join_title(&self.view.sermon_title, &self.view.title_suffix);
+        self.view.year = info.date().map(|(y, _, _)| y);
+        self.view.status = Status::Analyzing;
+        self.view.progress = 0.0;
+        self.view.error = None;
+        self.needs_analysis = true;
+        self.refresh_output_name();
+    }
+
+    /// True for a YouTube job whose audio has not been downloaded yet.
+    pub fn needs_download(&self) -> bool {
+        self.view.source_url.is_some() && self.view.path.as_os_str().is_empty()
+    }
+
     /// Output file name requested for this job (episode title based).
     pub fn file_name(&self) -> Option<String> {
         podcast_core::naming::episode_file_name(&self.view.sermon_title, &self.view.title_suffix)
@@ -189,6 +238,36 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn youtube_job_lifecycle() {
+        let mut j = Job::new_youtube(3, "dQw4w9WgXcQ");
+        assert_eq!(j.view.status, Status::Downloading);
+        assert!(j.needs_download());
+        assert!(!j.needs_analysis);
+        let info = podcast_core::youtube::VideoInfo {
+            id: "dQw4w9WgXcQ".into(),
+            title: "Co mi wolno?".into(),
+            upload_date: Some("20261011".into()),
+            uploader: None,
+            channel: None,
+            duration: None,
+        };
+        j.downloaded(
+            PathBuf::from("/d/2026-10-11-co-mi-wolno-yt-dQw4w9WgXcQ.m4a"),
+            &info,
+        );
+        assert!(!j.needs_download());
+        assert!(j.needs_analysis);
+        assert_eq!(j.view.status, Status::Analyzing);
+        assert_eq!(j.view.title, "Co mi wolno? - 2026.10.11");
+        assert_eq!(j.view.year, Some(2026));
+        assert_eq!(j.view.output_name, "2026-10-11-co-mi-wolno-podcast.mp3");
+        assert_eq!(
+            serde_json::to_value(&j.view).unwrap()["sourceUrl"],
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
     }
 
     #[test]

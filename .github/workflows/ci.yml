@@ -77,9 +77,22 @@ jobs:
           key: test-${{ matrix.target }}
       - name: Pinned ffmpeg/ffprobe (checksums verified)
         run: node scripts/fetch-ffmpeg.mjs --target ${{ matrix.target }}
-      - name: ffmpeg version
-        run: src-tauri/binaries/ffmpeg-${{ matrix.target }}${{ matrix.exe }} -hide_banner -version
+      - name: Bundled tools start (ffmpeg, yt-dlp, deno)
         shell: bash
+        run: |
+          b=src-tauri/binaries
+          $b/ffmpeg-${{ matrix.target }}${{ matrix.exe }} -hide_banner -version | head -1
+          $b/yt-dlp-${{ matrix.target }}${{ matrix.exe }} --version
+          $b/deno-${{ matrix.target }}${{ matrix.exe }} --version
+      - name: YouTube smoke test (informational, YouTube may block CI)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        shell: bash
+        run: |
+          b=src-tauri/binaries
+          $b/yt-dlp-${{ matrix.target }}${{ matrix.exe }} --ignore-config --no-playlist \
+            --js-runtimes "deno:$b/deno-${{ matrix.target }}${{ matrix.exe }}" \
+            --skip-download --print "%(id)s %(title)s" -- "https://www.youtube.com/watch?v=jNQXAC9IVRw"
       - name: Core tests (generated audio, Polish paths)
         run: cargo test -p podcast-core --locked
         env:

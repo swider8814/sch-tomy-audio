@@ -10,7 +10,7 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 
 Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i kaznodziei z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
-Aplikacja działa bez internetu i niczego nie wysyła.
+Aplikacja działa bez internetu i niczego nie wysyła. Wyjątek: pobieranie nagrania z YouTube, gdy sam wkleisz link.
 
 ## 1. Pobranie
 
@@ -77,6 +77,15 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
 6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
 
 Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,5 LU. Plik jest zapisany, ale warto go odsłuchać.
+
+## 5a. Nagrania z YouTube
+
+1. Skopiuj adres filmu z YouTube (np. `https://www.youtube.com/watch?v=...` albo `https://youtu.be/...`).
+2. Wklej go w pole **„albo wklej link do YouTube”** pod przyciskiem „Wybierz pliki” i kliknij **Pobierz z YouTube**.
+3. Aplikacja pobierze sam dźwięk (bez obrazu) do folderu **Pobrane/SCh Tomy YouTube** i doda go do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
+4. Dalej wszystko działa tak samo jak dla plików: sprawdź start, kliknij **Przetwórz wszystkie**.
+
+To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
 
 ## 6. Ustawianie początku i końca (Edytuj cięcie)
 

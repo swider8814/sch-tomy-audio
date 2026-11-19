@@ -64,6 +64,10 @@ fn editable(job: &Job) -> Result<(), String> {
         Status::Processing | Status::Queued => {
             Err("Tego pliku nie można zmienić podczas obróbki.".into())
         }
+        Status::Downloading => Err("Poczekaj, aż nagranie pobierze się z YouTube.".into()),
+        _ if job.needs_download() => {
+            Err("To nagranie nie zostało jeszcze pobrane z YouTube.".into())
+        }
         _ => Ok(()),
     }
 }
@@ -139,6 +143,30 @@ pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
     drop(g);
     state.wake.notify_all();
     added
+}
+
+/// Adds a YouTube link: the audio is downloaded, then processed like a file.
+#[tauri::command]
+pub fn add_youtube(app: AppHandle, state: St<'_>, url: String) -> Result<String, String> {
+    let id = podcast_core::youtube::parse_video_id(&url).map_err(|e| e.user_message())?;
+    if let Err(e) = &state.yt {
+        return Err(format!("{} ({})", e.user_message(), e.details));
+    }
+    let canonical = podcast_core::youtube::canonical_url(&id);
+    let mut g = state.lock();
+    if g.jobs
+        .iter()
+        .any(|j| j.view.source_url.as_deref() == Some(canonical.as_str()))
+    {
+        return Err("Ten film jest już na liście.".into());
+    }
+    let job_id = g.next_id;
+    g.next_id += 1;
+    g.jobs.push(Job::new_youtube(job_id, &id));
+    emit_jobs(&app, &g);
+    drop(g);
+    state.wake.notify_all();
+    Ok(state.youtube_dir.display().to_string())
 }
 
 #[tauri::command]
@@ -448,8 +476,9 @@ pub fn save_settings(
     for j in g.jobs.iter_mut() {
         if matches!(
             j.view.status,
-            Status::Processing | Status::Queued | Status::Done
-        ) {
+            Status::Processing | Status::Queued | Status::Done | Status::Downloading
+        ) || j.needs_download()
+        {
             continue;
         }
         if window_changed {
@@ -471,7 +500,7 @@ pub fn start_all(app: AppHandle, state: St<'_>) -> usize {
     let mut g = state.lock();
     let mut n = 0;
     for j in g.jobs.iter_mut() {
-        if matches!(j.view.status, Status::Waiting | Status::Cancelled) {
+        if matches!(j.view.status, Status::Waiting | Status::Cancelled) && !j.needs_download() {
             j.view.status = Status::Queued;
             j.view.progress = 0.0;
             n += 1;
@@ -490,7 +519,10 @@ pub fn retry_job(app: AppHandle, state: St<'_>, id: u64) -> Result<(), String> {
             return Ok(());
         }
         j.view.error = None;
-        if j.view.duration.is_none() {
+        if j.needs_download() {
+            j.view.status = Status::Downloading;
+            j.view.progress = 0.0;
+        } else if j.view.duration.is_none() {
             // reading the file failed: analyse again
             j.view.status = Status::Analyzing;
             j.needs_analysis = true;
@@ -519,7 +551,7 @@ pub fn cancel_job(app: AppHandle, state: St<'_>, id: u64) -> Result<(), String> 
     with_job(&app, &state, id, |j| {
         match j.view.status {
             Status::Queued => j.view.status = Status::Waiting,
-            Status::Processing => j.cancel.cancel(),
+            Status::Processing | Status::Downloading => j.cancel.cancel(),
             _ => {}
         }
         Ok(())

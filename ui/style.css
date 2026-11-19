@@ -96,6 +96,7 @@ main { padding: 1rem 1.25rem 2rem; }
 
 #list-section { margin-top: 1rem; }
 .list-toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.list-toolbar button { white-space: nowrap; }
 .spacer { flex: 1; }
 #overall { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; }
 #overall .bar { flex: 1; }
@@ -212,3 +213,8 @@ pre#log-text {
   max-width: 90vw;
 }
 #toast.show { opacity: 0.95; }
+
+.yt-row { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin-top: 0.9rem; flex-wrap: wrap; }
+.yt-row input { width: min(460px, 70vw); }
+.yt-label { color: var(--muted); font-size: 0.9rem; }
+.badge.downloading { background: var(--info-bg); color: var(--accent); }

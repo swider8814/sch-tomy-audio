@@ -26,6 +26,22 @@ This application bundles the following third-party software.
   The ffmpeg and ffprobe programs are run as separate processes; this
   application does not link against FFmpeg libraries.
 
+## yt-dlp (YouTube download)
+
+* Binaries: official release `2026.10.26` from
+  <https://github.com/yt-dlp/yt-dlp/releases> (`yt-dlp.exe` for Windows,
+  `yt-dlp_macos` for macOS), pinned by SHA-256.
+* Licence: The Unlicense (public domain), shipped as `YTDLP_LICENSE.txt`.
+  The standalone builds bundle a Python runtime and libraries under their
+  own permissive licences (Python Software Foundation License and others),
+  listed in the yt-dlp repository.
+
+## Deno (JavaScript runtime used by yt-dlp for YouTube)
+
+* Binaries: official release `v2.9.7` from
+  <https://github.com/denoland/deno/releases>, pinned by SHA-256.
+* Licence: MIT, shipped as `DENO_LICENSE.txt`.
+
 ## Silero VAD
 
 * Model: `silero_vad.onnx` v5.1.2 from the `silero-vad` package
