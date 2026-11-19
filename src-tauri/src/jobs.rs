@@ -4,10 +4,10 @@ use podcast_core::pipeline::{ProcessResult, Stage};
 use podcast_core::teaser::TeaserMatch;
 use podcast_core::vad::SpeechProposal;
 use podcast_core::CancelToken;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
     /// YouTube link: the audio is being downloaded.
@@ -24,7 +24,7 @@ pub enum Status {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StartSource {
     /// No start marker: the beginning is not cut.
@@ -39,14 +39,14 @@ pub enum StartSource {
     VadProposal,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorView {
     pub message: String,
     pub details: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobView {
     pub id: u64,
@@ -179,6 +179,38 @@ impl Job {
         self.refresh_output_name();
     }
 
+    /// Rebuilds a job from the list saved by the previous session. Work that
+    /// was running is put back to "waiting"; files that disappeared become
+    /// an error the user can see.
+    pub fn restore(mut view: JobView) -> Self {
+        let mut job = Job::new(view.id, PathBuf::new());
+        let missing = !view.path.as_os_str().is_empty() && !view.path.is_file();
+        view.stage = None;
+        match view.status {
+            Status::Processing | Status::Queued => {
+                view.status = Status::Waiting;
+                view.progress = 0.0;
+            }
+            Status::Downloading => view.progress = 0.0,
+            _ => {}
+        }
+        if missing && view.status != Status::Done {
+            view.status = Status::Error;
+            view.error = Some(ErrorView {
+                message: "Nie znaleziono tego nagrania na dysku (zostało przeniesione albo usunięte). Usuń je z listy i dodaj ponownie.".into(),
+                details: view.path.display().to_string(),
+            });
+        }
+        let analysed = view.duration.is_some() && view.status != Status::Analyzing;
+        job.needs_analysis = !analysed && !missing && !view.path.as_os_str().is_empty();
+        if analysed {
+            // keep the VAD/teaser results of the previous session
+            job.vad_done = Some(job.vad_generation);
+        }
+        job.view = view;
+        job
+    }
+
     /// True for a YouTube job whose audio has not been downloaded yet.
     pub fn needs_download(&self) -> bool {
         self.view.source_url.is_some() && self.view.path.as_os_str().is_empty()
@@ -249,6 +281,41 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn restore_after_restart() {
+        let dir = std::env::temp_dir().join(format!("schtomy-restore-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4");
+        std::fs::write(&file, b"x").unwrap();
+        let mut j = Job::new(7, file.clone());
+        j.view.duration = Some(3600.0);
+        j.view.status = Status::Processing;
+        j.view.sermon_title = "Co mi wolno?".into();
+        j.view.start = Some(42.0);
+        j.view.start_source = StartSource::Manual;
+        // through JSON, as written to queue.json
+        let json = serde_json::to_string(&vec![j.view.clone()]).unwrap();
+        let views: Vec<JobView> = serde_json::from_str(&json).unwrap();
+        let r = Job::restore(views[0].clone());
+        assert_eq!(r.view.status, Status::Waiting);
+        assert_eq!(r.view.sermon_title, "Co mi wolno?");
+        assert_eq!(r.view.start, Some(42.0));
+        assert_eq!(r.view.start_source, StartSource::Manual);
+        assert!(!r.needs_analysis, "analysis results are kept");
+        // a file that disappeared
+        std::fs::remove_file(&file).unwrap();
+        let r = Job::restore(views[0].clone());
+        assert_eq!(r.view.status, Status::Error);
+        assert!(!r.needs_analysis);
+        // not analysed yet: analysis runs again
+        let mut v = views[0].clone();
+        std::fs::write(&file, b"x").unwrap();
+        v.status = Status::Analyzing;
+        v.duration = None;
+        assert!(Job::restore(v).needs_analysis);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -41,6 +41,8 @@ pub struct AppState {
     previews: Mutex<Vec<CancelToken>>,
     /// Worker threads, joined on exit so their cleanup guards run.
     workers: Mutex<Vec<JoinHandle<()>>>,
+    /// The job list of the previous session is restored from here.
+    queue_path: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -52,9 +54,18 @@ impl AppState {
         let (settings, err) = Settings::load(&settings_path);
         let store = PatternStore::new(data_dir.join("patterns"));
         let patterns = Arc::new(store.load_all());
+        let queue_path = data_dir.join("queue.json");
+        let jobs: Vec<Job> = std::fs::read(&queue_path)
+            .ok()
+            .and_then(|b| serde_json::from_slice::<Vec<JobView>>(&b).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(Job::restore)
+            .collect();
+        let next_id = jobs.iter().map(|j| j.view.id).max().unwrap_or(0) + 1;
         Self {
             inner: Mutex::new(Inner {
-                jobs: Vec::new(),
+                jobs,
                 settings,
                 settings_note: err.map(|e| {
                     format!(
@@ -62,7 +73,7 @@ impl AppState {
                         e.details
                     )
                 }),
-                next_id: 1,
+                next_id,
                 patterns,
                 shutting_down: false,
             }),
@@ -76,6 +87,7 @@ impl AppState {
             store,
             previews: Mutex::new(Vec::new()),
             workers: Mutex::new(Vec::new()),
+            queue_path,
         }
     }
 
@@ -132,6 +144,20 @@ impl AppState {
         self.wake.notify_all();
     }
 
+    /// Writes the job list (views only) if it changed since `last`.
+    pub fn save_queue(&self, last: &mut String) {
+        let json = {
+            let g = self.lock();
+            let views: Vec<&JobView> = g.jobs.iter().map(|j| &j.view).collect();
+            serde_json::to_string(&views).unwrap_or_default()
+        };
+        if json != *last
+            && podcast_core::settings::write_atomic(&self.queue_path, json.as_bytes()).is_ok()
+        {
+            *last = json;
+        }
+    }
+
     pub fn shutdown(&self) {
         let mut g = self.lock();
         g.shutting_down = true;
@@ -159,6 +185,7 @@ impl AppState {
                 let _ = h.join();
             }
         }
+        self.save_queue(&mut String::new());
     }
 }
 
@@ -184,6 +211,10 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
     {
         let (a, s) = (app.clone(), state.clone());
         handles.push(std::thread::spawn(move || download_worker(a, s)));
+    }
+    {
+        let s = state.clone();
+        handles.push(std::thread::spawn(move || queue_saver(s)));
     }
     state
         .workers
@@ -537,5 +568,20 @@ fn download_worker(app: AppHandle, state: Arc<AppState>) {
         }
         drop(g);
         state.wake.notify_all();
+    }
+}
+
+/// Saves the job list every few seconds when it changed, so titles, markers
+/// and results survive closing the app (or a crash).
+fn queue_saver(state: Arc<AppState>) {
+    let mut last = String::new();
+    loop {
+        for _ in 0..12 {
+            std::thread::sleep(Duration::from_millis(250));
+            if state.lock().shutting_down {
+                return;
+            }
+        }
+        state.save_queue(&mut last);
     }
 }
