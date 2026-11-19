@@ -31,10 +31,12 @@ env:
 
 jobs:
   lint:
-    name: Lint and app unit tests (Linux)
+    # No system packages here: the Ubuntu apt mirrors used by the runners were
+    # missing or extremely slow several times, so everything that needs
+    # WebKitGTK (compiling the Tauri app) runs on Windows/macOS instead.
+    name: Format and UI tests (Linux)
     runs-on: ubuntu-24.04
-    # cold builds of Tauri + tract in the test profile take ~35 min
-    timeout-minutes: 90
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,25 +44,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: npm
-      - name: System packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev librsvg2-dev ffmpeg
       - name: Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal -c clippy,rustfmt
+          rustup toolchain install stable --profile minimal -c rustfmt
           rustup default stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - run: npm ci
-      - name: Sidecars from the system (Linux is a development platform only)
-        run: node scripts/fetch-ffmpeg.mjs --from-path
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test -p schtomy-podcast --locked
-      - name: Core tests with the system ffmpeg
-        run: cargo test -p podcast-core --locked
-      - run: npm run test:ui
+      - run: node --test "ui-tests/*.test.mjs"
 
   test:
     name: Tests (${{ matrix.name }})
@@ -70,7 +59,8 @@ jobs:
         # macOS (10x minutes) only for releases and manual runs.
         include: ${{ fromJSON((startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch') && '[{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","exe":".exe"},{"name":"macOS arm64","os":"macos-15","target":"aarch64-apple-darwin","exe":""}]' || '[{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","exe":".exe"}]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    # cold builds of Tauri + tract (clippy and tests) take ~40 min
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -80,7 +70,7 @@ jobs:
           node-version: 22
       - name: Rust toolchain
         run: |
-          rustup toolchain install stable --profile minimal
+          rustup toolchain install stable --profile minimal -c clippy
           rustup default stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
@@ -95,8 +85,10 @@ jobs:
         env:
           SCHTOMY_FFMPEG: ${{ github.workspace }}/src-tauri/binaries/ffmpeg-${{ matrix.target }}${{ matrix.exe }}
           SCHTOMY_FFPROBE: ${{ github.workspace }}/src-tauri/binaries/ffprobe-${{ matrix.target }}${{ matrix.exe }}
-      - name: UI helper tests
-        run: node --test "ui-tests/*.test.mjs"
+      - name: Clippy (whole workspace, including the Tauri app)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: App unit tests
+        run: cargo test -p schtomy-podcast --locked
 
   build:
     name: Build (${{ matrix.name }})

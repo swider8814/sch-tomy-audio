@@ -52,3 +52,24 @@ fn main() {
             }
         });
 }
+
+#[cfg(test)]
+mod capability_tests {
+    /// The UI registers `onCloseRequested` (close guard while processing);
+    /// Tauri then closes the window with `destroy()`, which needs this
+    /// permission. Without it the X button silently does nothing.
+    #[test]
+    fn window_can_be_closed() {
+        let caps: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let perms: Vec<&str> = caps["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|p| p.as_str())
+            .collect();
+        assert!(perms.contains(&"core:window:allow-destroy"), "{perms:?}");
+        let ui = include_str!("../../ui/js/app.js");
+        assert!(ui.contains("onCloseRequested"));
+    }
+}
