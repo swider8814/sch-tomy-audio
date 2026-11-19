@@ -1,5 +1,9 @@
 # SCh Tomy Audio
 
+> **Po polsku:** aplikację pobierzesz z zakładki
+> [Releases](https://github.com/swider8814/sch-tomy-audio/releases), a
+> instrukcję obsługi znajdziesz w [INSTRUKCJA.md](INSTRUKCJA.md).
+
 Desktop tool (Windows, macOS) that prepares sermon recordings of
 "Społeczność Chrześcijańska Tomy" for the church podcast. User guide in
 Polish: [INSTRUKCJA.md](INSTRUKCJA.md). Architecture and decisions:
