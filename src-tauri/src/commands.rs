@@ -21,6 +21,8 @@ const MEDIA_EXTENSIONS: &[&str] = &[
 const PREVIEW_HEAD_S: f64 = 180.0;
 const PREVIEW_TAIL_S: f64 = 120.0;
 const PREVIEW_RATE: u32 = 22_050;
+/// Context played after the latest marker or proposal in the head preview.
+const PREVIEW_MARGIN_S: f64 = 30.0;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -161,9 +163,44 @@ pub fn clear_finished(app: AppHandle, state: St<'_>) {
 pub fn set_title(app: AppHandle, state: St<'_>, id: u64, title: String) -> Result<(), String> {
     with_job(&app, &state, id, |j| {
         editable(j)?;
-        j.view.title = title.chars().take(300).collect();
+        let title: String = title.chars().take(300).collect();
+        if title != j.view.title {
+            j.view.title = title;
+            // The finished MP3 carries the old title: process it again.
+            requeue_finished(j);
+        }
         Ok(())
     })
+}
+
+/// A finished (or cancelled) job whose title or markers change goes back to
+/// "waiting", so "Przetwórz wszystkie" writes a new file with the change.
+fn requeue_finished(j: &mut Job) {
+    if matches!(j.view.status, Status::Done | Status::Cancelled) {
+        j.view.status = Status::Waiting;
+        j.view.result = None;
+        j.view.progress = 0.0;
+    }
+}
+
+/// Checks markers against the recording; the same limits as
+/// `pipeline::validate_cut`, so an accepted marker never fails later.
+fn check_markers(
+    start: Option<f64>,
+    end: Option<f64>,
+    duration: Option<f64>,
+) -> Result<(), String> {
+    if let (Some(s), Some(d)) = (start, duration) {
+        if s >= d - 1.0 {
+            return Err("Start musi być co najmniej sekundę przed końcem nagrania.".into());
+        }
+    }
+    if let Some(e) = end {
+        if e <= start.unwrap_or(0.0) + 1.0 {
+            return Err("Koniec musi być co najmniej sekundę po starcie.".into());
+        }
+    }
+    Ok(())
 }
 
 fn valid_time(t: Option<f64>, duration: Option<f64>) -> Result<Option<f64>, String> {
@@ -188,11 +225,7 @@ pub fn set_markers(
         editable(j)?;
         let start = valid_time(start, j.view.duration)?;
         let end = valid_time(end, j.view.duration)?;
-        if let (Some(s), Some(e)) = (start, end) {
-            if e <= s + 1.0 {
-                return Err("Koniec musi być co najmniej sekundę po starcie.".into());
-            }
-        }
+        check_markers(start, end, j.view.duration)?;
         j.view.start = start;
         j.view.start_source = if start.is_some() {
             StartSource::Manual
@@ -200,9 +233,7 @@ pub fn set_markers(
             StartSource::None
         };
         j.view.end = end;
-        if matches!(j.view.status, Status::Done | Status::Cancelled) {
-            j.view.status = Status::Waiting;
-        }
+        requeue_finished(j);
         Ok(())
     })
 }
@@ -229,27 +260,92 @@ fn job_path_and_duration(state: &AppState, id: u64) -> Result<(PathBuf, Option<f
     Ok((j.view.path.clone(), j.view.duration))
 }
 
+/// Length of the "head" preview: at least 3 minutes, longer when a marker or
+/// an automatic proposal lies later (up to the search window), so every
+/// proposal can be checked by listening.
+pub fn head_preview_length(
+    duration: f64,
+    search_window: f64,
+    points: impl IntoIterator<Item = f64>,
+) -> f64 {
+    let latest = points.into_iter().fold(0.0f64, f64::max);
+    let limit = PREVIEW_HEAD_S.max(search_window + PREVIEW_MARGIN_S);
+    PREVIEW_HEAD_S
+        .max(latest + PREVIEW_MARGIN_S)
+        .min(limit)
+        .min(duration)
+}
+
+/// Lower sample rate for long previews keeps the WAV small.
+fn preview_rate(len: f64) -> u32 {
+    if len > 300.0 {
+        11_025
+    } else {
+        PREVIEW_RATE
+    }
+}
+
 /// WAV bytes of the beginning ("head") or the end ("tail") of a recording.
+/// `length` (head only) comes from the editor, see `head_preview_length`.
 #[tauri::command(async)]
-pub fn get_preview(state: St<'_>, id: u64, part: String) -> Result<tauri::ipc::Response, String> {
-    let (path, duration) = job_path_and_duration(&state, id)?;
+pub fn get_preview(
+    state: St<'_>,
+    id: u64,
+    part: String,
+    length: Option<f64>,
+) -> Result<tauri::ipc::Response, String> {
+    let (path, duration, default_head) = {
+        let g = state.lock();
+        let j = g
+            .jobs
+            .iter()
+            .find(|j| j.view.id == id)
+            .ok_or_else(not_found)?;
+        let points = [
+            j.view.start,
+            j.view.teaser.as_ref().map(|t| t.end),
+            j.view.vad.map(|v| v.start),
+        ];
+        let default_head = j.view.duration.map(|d| {
+            head_preview_length(d, g.settings.search_window_s, points.into_iter().flatten())
+        });
+        (j.view.path.clone(), j.view.duration, default_head)
+    };
     let tools = state.tools.as_ref().map_err(|e| e.user_message())?;
     let duration = duration.ok_or("Plik jest jeszcze analizowany. Spróbuj za chwilę.")?;
     let (start, len) = if part == "tail" {
         let start = (duration - PREVIEW_TAIL_S).max(0.0);
         (start, duration - start)
     } else {
-        (0.0, PREVIEW_HEAD_S.min(duration))
+        let max =
+            PREVIEW_HEAD_S.max(podcast_core::settings::MAX_SEARCH_WINDOW_S + PREVIEW_MARGIN_S);
+        let len = length
+            .filter(|l| l.is_finite())
+            .or(default_head)
+            .unwrap_or(PREVIEW_HEAD_S)
+            .clamp(1.0, max);
+        (0.0, len.min(duration))
     };
-    podcast_core::pcm::decode_wav(tools, &path, start, len, PREVIEW_RATE, &CancelToken::new())
-        .map(tauri::ipc::Response::new)
-        .map_err(|e| {
+    let token = state.preview_token();
+    let res = podcast_core::pcm::decode_wav(tools, &path, start, len, preview_rate(len), &token);
+    state.finish_preview(&token);
+    res.map(tauri::ipc::Response::new).map_err(|e| {
+        if e.is_cancelled() {
+            "Anulowano.".to_string()
+        } else {
             format!(
                 "{} ({})",
                 e.user_message(),
                 e.details.lines().next().unwrap_or("")
             )
-        })
+        }
+    })
+}
+
+/// Stops preview decodes (called when the editor closes).
+#[tauri::command]
+pub fn cancel_previews(state: St<'_>) {
+    state.cancel_previews();
 }
 
 #[tauri::command]
@@ -343,7 +439,7 @@ pub fn save_settings(
             continue;
         }
         if window_changed {
-            j.vad_attempted = false;
+            j.vad_generation += 1;
             j.needs_analysis = true;
         } else {
             j.apply_suggestions(threshold);
@@ -439,6 +535,40 @@ mod tests {
             .collect();
         assert_eq!(got, vec!["a film.MP4", "b kazanie.mp3"]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn markers_follow_pipeline_limits() {
+        assert!(check_markers(Some(99.5), None, Some(100.0)).is_err());
+        assert!(check_markers(Some(100.0), None, Some(100.0)).is_err());
+        assert!(check_markers(Some(98.9), None, Some(100.0)).is_ok());
+        assert!(check_markers(Some(10.0), Some(10.5), Some(100.0)).is_err());
+        assert!(check_markers(None, Some(0.5), Some(100.0)).is_err());
+        assert!(check_markers(None, None, None).is_ok());
+        // every accepted combination is also accepted by the pipeline
+        for (s, e) in [
+            (Some(98.9), None),
+            (Some(10.0), Some(11.5)),
+            (None, Some(2.0)),
+        ] {
+            check_markers(s, e, Some(100.0)).unwrap();
+            podcast_core::pipeline::validate_cut(
+                podcast_core::pipeline::Cut { start: s, end: e },
+                100.0,
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn head_preview_covers_late_proposals() {
+        assert_eq!(head_preview_length(3600.0, 300.0, []), 180.0);
+        assert_eq!(head_preview_length(3600.0, 300.0, [42.0]), 180.0);
+        assert_eq!(head_preview_length(3600.0, 300.0, [250.0]), 280.0);
+        assert_eq!(head_preview_length(3600.0, 900.0, [880.0]), 910.0);
+        // a manual marker beyond the window is capped
+        assert_eq!(head_preview_length(3600.0, 300.0, [2000.0]), 330.0);
+        assert_eq!(head_preview_length(100.0, 300.0, [90.0]), 100.0);
     }
 
     #[test]

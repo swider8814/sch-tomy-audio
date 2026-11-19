@@ -29,6 +29,15 @@ function audioCtx() {
 
 // ------------------------------------------------------------------ open
 
+const PREVIEW_MARGIN_S = 30;
+
+/** Same rule as `head_preview_length` in src-tauri/src/commands.rs. */
+export function headPreviewLength(duration, searchWindow, points) {
+  const latest = Math.max(0, ...points.filter((p) => Number.isFinite(p)));
+  const limit = Math.max(app.previewHead, searchWindow + PREVIEW_MARGIN_S);
+  return Math.min(Math.max(app.previewHead, latest + PREVIEW_MARGIN_S), limit, duration);
+}
+
 export async function openEditor(id) {
   const job = getJob(id);
   if (!job || job.duration == null) return;
@@ -41,7 +50,7 @@ export async function openEditor(id) {
   const head = ed.parts.head;
   const tail = ed.parts.tail;
   head.offset = 0;
-  head.length = Math.min(app.previewHead, dur);
+  head.length = headPreviewLength(dur, app.settings?.search_window_s ?? 300, [job.start, job.teaser?.end, job.vad?.start]);
   tail.offset = Math.max(0, dur - app.previewTail);
   tail.length = dur - tail.offset;
   head.cursor = job.start ?? 0;
@@ -71,10 +80,11 @@ export async function openEditor(id) {
 
 async function loadPreviews(id) {
   const token = ++ed.loadToken;
+  await invoke("cancel_previews").catch(() => {});
   for (const name of ["head", "tail"]) {
     const p = ed.parts[name];
     try {
-      const bytes = await invoke("get_preview", { id, part: name });
+      const bytes = await invoke("get_preview", { id, part: name, length: name === "head" ? p.length : null });
       if (token !== ed.loadToken) return;
       const ab = bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes).buffer;
       p.buffer = await audioCtx().decodeAudioData(ab);
@@ -156,14 +166,16 @@ function draw(name) {
     g.fillText(p.error ?? "Wczytywanie podglądu...", 12 * dpr, H / 2);
   }
 
-  // time grid every 15 s
+  // time grid: ticks every 15 s (30 s for long previews), labels every 30/60 s
   g.fillStyle = "rgba(255,255,255,0.55)";
   g.font = `${10 * dpr}px system-ui, sans-serif`;
-  const first = Math.ceil(p.offset / 15) * 15;
-  for (let s = first; s <= p.offset + p.length; s += 15) {
+  const tick = p.length > 300 ? 30 : 15;
+  const labelEvery = p.length > 300 ? 60 : 30;
+  const first = Math.ceil(p.offset / tick) * tick;
+  for (let s = first; s <= p.offset + p.length; s += tick) {
     const xx = Math.round(x(s));
     g.fillRect(xx, H - 6 * dpr, 1, 6 * dpr);
-    if (s % 30 === 0) g.fillText(formatTime(s).replace(/,\d$/, ""), xx + 3 * dpr, H - 8 * dpr);
+    if (s % labelEvery === 0) g.fillText(formatTime(s).replace(/,\d$/, ""), xx + 3 * dpr, H - 8 * dpr);
   }
 
   const vline = (time, color, label, dashed) => {
@@ -378,6 +390,7 @@ async function savePattern() {
 function close() {
   stop();
   ed.loadToken++;
+  invoke("cancel_previews").catch(() => {});
   if (dlg().open) dlg().close();
 }
 
@@ -429,6 +442,7 @@ function setup() {
   dlg().addEventListener("close", () => {
     stop();
     ed.loadToken++;
+    invoke("cancel_previews").catch(() => {});
   });
   dlg().addEventListener("keydown", (ev) => {
     if (ev.code === "Space" && !(ev.target instanceof HTMLInputElement) && !(ev.target instanceof HTMLButtonElement)) {

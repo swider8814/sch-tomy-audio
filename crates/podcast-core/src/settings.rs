@@ -82,6 +82,9 @@ impl Default for Settings {
     }
 }
 
+/// Upper limit of the teaser/VAD search window, seconds.
+pub const MAX_SEARCH_WINDOW_S: f64 = 900.0;
+
 pub const BITRATES: [u32; 6] = [96, 128, 160, 192, 256, 320];
 
 fn clamp_finite(v: f64, lo: f64, hi: f64, default: f64) -> f64 {
@@ -112,7 +115,12 @@ impl Settings {
         self.crossfade_ms = self.crossfade_ms.min(5000);
         self.pattern_threshold =
             clamp_finite(self.pattern_threshold, 0.2, 0.99, d.pattern_threshold);
-        self.search_window_s = clamp_finite(self.search_window_s, 60.0, 900.0, d.search_window_s);
+        self.search_window_s = clamp_finite(
+            self.search_window_s,
+            60.0,
+            MAX_SEARCH_WINDOW_S,
+            d.search_window_s,
+        );
         self.concurrency = self.concurrency.clamp(1, 4);
         if self.artist.trim().is_empty() {
             self.artist = d.artist;

@@ -75,8 +75,11 @@ pub struct Job {
     pub needs_analysis: bool,
     pub analysis_running: bool,
     pub analysis_cancel: CancelToken,
-    /// VAD already ran (its result is kept when patterns change).
-    pub vad_attempted: bool,
+    /// Incremented whenever the VAD result becomes obsolete (search window
+    /// changed). `vad_done` is the generation the current result belongs to;
+    /// the result is kept when only teaser patterns change.
+    pub vad_generation: u64,
+    pub vad_done: Option<u64>,
 }
 
 impl Job {
@@ -112,7 +115,8 @@ impl Job {
             needs_analysis: true,
             analysis_running: false,
             analysis_cancel: CancelToken::new(),
-            vad_attempted: false,
+            vad_generation: 0,
+            vad_done: None,
         }
     }
 

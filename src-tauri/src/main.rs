@@ -30,6 +30,7 @@ fn main() {
             commands::set_markers,
             commands::use_suggestion,
             commands::get_preview,
+            commands::cancel_previews,
             commands::get_log,
             commands::save_pattern,
             commands::delete_pattern,

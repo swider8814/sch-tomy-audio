@@ -76,7 +76,7 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 ## 6. Ustawianie początku i końca (Edytuj cięcie)
 
-Okno pokazuje przebieg dźwięku pierwszych 3 minut i ostatnich 2 minut nagrania.
+Okno pokazuje przebieg dźwięku pierwszych 3 minut nagrania (dłużej, jeśli propozycja startu wypada później) i ostatnich 2 minut.
 
 1. Kliknij w przebieg fali, żeby ustawić kursor (biała przerywana linia).
 2. Kliknij **▶ Odtwórz od kursora** (albo naciśnij spację), żeby posłuchać.
