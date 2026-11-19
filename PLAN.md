@@ -47,13 +47,13 @@ crates/podcast-core/     Rust library, no Tauri dependency, all audio logic
   src/teaser.rs          teaser patterns: storage + cross-correlation search
   src/naming.rs          output file names, titles, years
   src/tags.rs            ID3 tags
-  src/settings.rs        persisted settings (serde, defaults)
-  src/timefmt.rs         mm:ss,d parsing/formatting
-  assets/                silero_vad_16k.onnx
+  src/settings.rs        persisted settings (serde, defaults, clamping)
+  assets/                silero_vad_16k.onnx (+ licence)
   tests/                 integration tests (generate audio with ffmpeg)
 src-tauri/               Tauri app: commands, job queue, events
   binaries/              downloaded sidecars (git-ignored)
-ui/                      index.html, style.css, js/*.js (+ node tests)
+ui/                      index.html, style.css, js/*.js (served as is)
+ui-tests/                node --test tests of ui/js/format.js (mm:ss,d etc.)
 scripts/                 fetch-ffmpeg.mjs, ffmpeg-sources.json, make-icon
 tools/vad/               model preparation script (one-off, reproducible)
 docs/threat-model.md
@@ -87,6 +87,10 @@ docs/threat-model.md
    the final name (`<slug>-podcast.mp3`, `-2`, `-3`... if taken; existing
    files are never overwritten, the original never).
 7. Verify with `ebur128=peak=true`: integrated LUFS, true peak, duration.
+   MP3 encoding (and loudnorm's own gating on programmes with silent gaps)
+   can leave the file a few tenths of a LU off target; if the error is
+   > 0.2 LU, the encode is repeated once with the target shifted by the
+   error and the better file is kept.
    |I - target| > 0.5 LU or TP above target → warning in the list.
 
 ## Teaser start marker
