@@ -198,6 +198,11 @@ docs/threat-model.md
 * **Listening to the result (v0.1.4):** `get_result_preview` decodes the
   first 90 s or last 60 s of the job's own output file to WAV (same path as
   the editor previews) and the UI plays it with WebAudio.
+* **macOS signing (v0.1.4 fix):** ad hoc, without the hardened runtime.
+  With it (Tauri's default), library validation refused the Python that the
+  standalone yt-dlp unpacks at start ("different Team IDs"), so YouTube
+  downloads failed on macOS in 0.1.3. CI now starts yt-dlp, Deno and ffmpeg
+  from inside the built .app on Apple Silicon.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

@@ -267,7 +267,10 @@ scope, code signing).
 ## Out of scope
 
 * **Code signing / notarisation**: deliberately not done (no paid
-  certificates). Users are told how to open the app past Gatekeeper and
+  certificates). The macOS app is signed ad hoc without the hardened runtime
+  (`hardenedRuntime: false`): the hardened runtime only matters for
+  notarisation, and its library validation stops the bundled yt-dlp, which
+  unpacks its own Python signed by the yt-dlp team. Users are told how to open the app past Gatekeeper and
   SmartScreen (INSTRUKCJA.md). This means users cannot verify the publisher
   from the OS; they should download only from this repository's Releases and
   may compare `SHA256SUMS.txt`.
