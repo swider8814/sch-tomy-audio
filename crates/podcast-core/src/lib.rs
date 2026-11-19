@@ -3,6 +3,7 @@
 //! Everything here is independent of the GUI so it can be tested with plain
 //! `cargo test` on every platform.
 
+pub mod bundle;
 pub mod error;
 pub mod ffmpeg;
 pub mod filters;

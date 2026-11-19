@@ -52,6 +52,8 @@ pub struct AppState {
     /// Watched folder state (`podcast_core::watch`), saved to `watch_path`.
     watch: Mutex<podcast_core::watch::WatchState>,
     watch_path: PathBuf,
+    /// Intro, outro and cover imported from a settings file live here.
+    pub imported_dir: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -119,6 +121,7 @@ impl AppState {
             history_path,
             watch: Mutex::new(watch),
             watch_path,
+            imported_dir: data_dir.join("imported"),
         }
     }
 

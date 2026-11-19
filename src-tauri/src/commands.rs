@@ -546,6 +546,97 @@ pub fn result_preview_range(part: &str, duration: f64) -> (f64, f64) {
     }
 }
 
+/// Saves the setup to a `.schtomy` file chosen by the user (settings, intro,
+/// outro, cover, patterns, speakers; never the machine-specific folders).
+#[tauri::command(async)]
+pub fn export_settings(state: St<'_>, path: String) -> Result<String, String> {
+    let mut path = PathBuf::from(path);
+    if path
+        .extension()
+        .is_none_or(|e| !e.eq_ignore_ascii_case("schtomy"))
+    {
+        path.set_extension("schtomy");
+    }
+    let (settings, speakers) = {
+        let g = state.lock();
+        (g.settings.clone(), g.speakers.clone())
+    };
+    let bytes = podcast_core::bundle::export(
+        &settings,
+        &state.store,
+        &speakers,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .map_err(|e| {
+        format!(
+            "Nie udało się przygotować pliku z ustawieniami. Sprawdź, czy pliki intro, outro i okładki są na swoim miejscu. ({})",
+            e.details
+        )
+    })?;
+    podcast_core::settings::write_atomic(&path, &bytes)
+        .map_err(|_| "Nie udało się zapisać pliku. Wybierz inny folder.".to_string())?;
+    Ok(path.display().to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    settings: Settings,
+    patterns: Vec<PatternMeta>,
+    speakers: Vec<String>,
+    summary: podcast_core::bundle::ImportSummary,
+}
+
+/// Loads a `.schtomy` file: replaces the settings (folders stay as they are
+/// on this computer), adds patterns and speakers.
+#[tauri::command(async)]
+pub fn import_settings(
+    app: AppHandle,
+    state: St<'_>,
+    path: String,
+) -> Result<ImportResult, String> {
+    let bundle = podcast_core::bundle::read(Path::new(&path)).map_err(|e| {
+        if e.details.contains("newer version") {
+            "Ten plik pochodzi z nowszej wersji aplikacji. Zaktualizuj aplikację i spróbuj ponownie.".to_string()
+        } else {
+            "To nie jest plik z ustawieniami SCh Tomy Audio albo jest uszkodzony.".to_string()
+        }
+    })?;
+    let current = state.lock().settings.clone();
+    let mut speakers = state.lock().speakers.clone();
+    let (settings, summary) = podcast_core::bundle::apply(
+        &bundle,
+        &current,
+        &state.imported_dir,
+        &state.store,
+        &mut speakers,
+    )
+    .map_err(|_| {
+        "Nie udało się wczytać ustawień z tego pliku. Plik może być uszkodzony.".to_string()
+    })?;
+    settings
+        .save(&state.settings_path)
+        .map_err(|e| format!("{} ({})", e.user_message(), e.details))?;
+    state.reload_patterns();
+    {
+        let mut g = state.lock();
+        g.settings = settings.clone();
+        g.settings_note = None;
+        g.speakers = speakers;
+        let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+        let _ = app.emit("speakers", &g.speakers);
+        emit_jobs(&app, &g);
+    }
+    state.wake.notify_all();
+    let g = state.lock();
+    Ok(ImportResult {
+        settings,
+        patterns: state.store.list(),
+        speakers: g.speakers.clone(),
+        summary,
+    })
+}
+
 /// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {

@@ -46,6 +46,7 @@ export function openSettings(tab = "basic") {
   renderSpeakers();
   $("#settings-error").textContent = "";
   $("#update-status").textContent = "";
+  $("#bundle-status").textContent = "";
   showTab(tab);
   dlg().showModal();
 }
@@ -189,6 +190,57 @@ function patternButton(label, cls, onclick) {
   return h("button", { type: "button", class: cls, onclick }, label);
 }
 
+async function exportBundle() {
+  const status = $("#bundle-status");
+  const path = await tauriDialog().save({
+    title: "Zapisz ustawienia do pliku",
+    defaultPath: "ustawienia-sch-tomy-audio.schtomy",
+    filters: [{ name: "Ustawienia SCh Tomy Audio", extensions: ["schtomy"] }],
+  });
+  if (!path) return;
+  status.textContent = "Zapisywanie...";
+  try {
+    const saved = await invoke("export_settings", { path });
+    status.textContent = `Zapisano: ${saved}. Zapisane są ustawienia sprzed otwarcia tego okna.`;
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
+async function importBundle() {
+  const status = $("#bundle-status");
+  const [path] = await pickFiles({
+    title: "Wczytaj ustawienia z pliku",
+    filters: [{ name: "Ustawienia SCh Tomy Audio", extensions: ["schtomy"] }],
+  });
+  if (!path) return;
+  const ok = await tauriDialog().ask(
+    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i kaznodzieje zostaną dodane do obecnych. Foldery zostaną bez zmian.",
+    { title: "Wczytywanie ustawień", kind: "warning", okLabel: "Wczytaj", cancelLabel: "Anuluj" },
+  );
+  if (!ok) return;
+  status.textContent = "Wczytywanie...";
+  try {
+    const r = await invoke("import_settings", { path });
+    setSettings(r.settings, r.patterns);
+    app.speakers = r.speakers;
+    draft = structuredClone(r.settings);
+    fill();
+    renderPatterns();
+    renderSpeakers();
+    const s = r.summary;
+    const files = [s.intro && "intro", s.outro && "outro", s.cover && "okładka"].filter(Boolean);
+    const parts = ["Wczytano ustawienia."];
+    if (files.length) parts.push(`Pliki: ${files.join(", ")}.`);
+    parts.push(`Nowe zajawki: ${s.patternsAdded}.`);
+    if (s.patternsSkipped) parts.push(`Pominięte (już są): ${s.patternsSkipped}.`);
+    parts.push(`Nowi kaznodzieje: ${s.speakersAdded}.`);
+    status.textContent = parts.join(" ");
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
 function renderSpeakers() {
   const ul = $("#speaker-settings-list");
   ul.replaceChildren();
@@ -272,6 +324,8 @@ function setup() {
     ev.preventDefault();
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  $("#bundle-export").addEventListener("click", exportBundle);
+  $("#bundle-import").addEventListener("click", importBundle);
   // The theme is previewed at once; closing without saving goes back to the saved one.
   for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));
   dlg().addEventListener("close", () => applyTheme(app.settings?.theme));
