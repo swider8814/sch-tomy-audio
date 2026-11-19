@@ -314,6 +314,7 @@ pub fn process(
         gap_after_intro,
         pad_after_recording: seg.pad_after_recording,
         crossfade,
+        enhance_voice: settings.enhance_voice,
         format: settings.output_format(),
     };
     let target = settings.loudness();

@@ -33,6 +33,7 @@ const DEFAULTS = {
   check_updates: true,
   theme: "system",
   notify_done: true,
+  enhance_voice: false,
 };
 
 const field = (name) => form().elements.namedItem(name);
@@ -90,6 +91,7 @@ function fill() {
   field("concurrency").value = s.concurrency;
   field("check_updates").checked = s.check_updates !== false;
   field("notify_done").checked = s.notify_done !== false;
+  field("enhance_voice").checked = !!s.enhance_voice;
   form().querySelector(`input[name=theme][value=${themeOf(s.theme)}]`).checked = true;
   $("#about-version").textContent = app.version;
 }
@@ -147,6 +149,7 @@ function collect() {
   s.concurrency = Math.round(num("concurrency", { min: 1, max: 4, label: "Ile plików naraz" }));
   s.check_updates = field("check_updates").checked;
   s.notify_done = field("notify_done").checked;
+  s.enhance_voice = field("enhance_voice").checked;
   s.theme = themeOf(form().querySelector("input[name=theme]:checked")?.value);
   return s;
 }
