@@ -66,12 +66,20 @@ test. Intro/outro in tests are 5 s placeholder tones.
 
 ## CI and releases
 
-`.github/workflows/ci.yml` runs lint and app unit tests on Linux, the core
-test suite on Windows x64 and macOS arm64 (with the pinned ffmpeg builds),
-and builds installers: Windows x64 NSIS `.exe`, macOS Apple Silicon `.dmg`,
-macOS Intel `.dmg` (cross-compiled). Pushing a tag `v*` additionally creates
-a GitHub Release with the installers and `SHA256SUMS.txt`. Bump `version` in
-`src-tauri/tauri.conf.json` (and the workspace `Cargo.toml`) before tagging.
+`.github/workflows/ci.yml` is tuned for the limited Actions minutes of a
+private repository (macOS minutes count 10x, Windows 2x):
+
+* **pull requests** (not documentation-only ones): fmt, clippy, app unit
+  tests, core tests and UI tests on Linux, core tests on Windows x64 with the
+  pinned ffmpeg build;
+* **tags `v*` and manual runs** (Actions, CI, "Run workflow"): additionally
+  core tests on macOS arm64 and the installers: Windows x64 NSIS `.exe`, macOS
+  Apple Silicon `.dmg`, macOS Intel `.dmg` (cross-compiled);
+* a **tag `v*`** also creates the GitHub Release with the installers and
+  `SHA256SUMS.txt` (or adds them to a release created by hand for that tag).
+
+Bump `version` in `src-tauri/tauri.conf.json` (and the workspace `Cargo.toml`)
+before tagging.
 
 The app is **not code-signed**. INSTRUKCJA.md explains how to open it past
 macOS Gatekeeper and Windows SmartScreen.
