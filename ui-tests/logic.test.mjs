@@ -51,6 +51,8 @@ test("nextToReview walks the list order and wraps around", () => {
   assert.equal(nextToReview(order, jobs, 2), 3);
   assert.equal(nextToReview([1], new Map([[1, list[0]]]), 1), null);
   assert.equal(nextToReview(order, jobs, 99), 1); // current removed from the list
+  // a file confirmed a moment ago is skipped even if the list has not caught up yet
+  assert.equal(nextToReview(order, jobs, 3, new Set([1])), null);
 });
 
 test("gridSteps: denser ticks when zoomed in", () => {

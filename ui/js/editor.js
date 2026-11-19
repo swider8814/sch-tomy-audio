@@ -22,6 +22,7 @@ const ed = {
   playing: null, // { part, source, startedAt, from }
   lastPart: "head",
   loadToken: 0,
+  confirmed: new Set(), // ids saved with "Zatwierdź i następny" in this round
 };
 
 function audioCtx() {
@@ -40,7 +41,8 @@ export function headPreviewLength(duration, searchWindow, points) {
   return Math.min(Math.max(app.previewHead, latest + PREVIEW_MARGIN_S), limit, duration);
 }
 
-export async function openEditor(id) {
+export async function openEditor(id, { chained = false } = {}) {
+  if (!chained) ed.confirmed.clear();
   const job = getJob(id);
   if (!job || job.duration == null) return;
   stop();
@@ -418,7 +420,9 @@ async function save() {
 }
 
 function othersToReview() {
-  return app.order.filter((id) => id !== ed.id && needsReview(app.jobs.get(id)) && app.jobs.get(id).duration != null).length;
+  return app.order.filter(
+    (id) => id !== ed.id && !ed.confirmed.has(id) && needsReview(app.jobs.get(id)) && app.jobs.get(id).duration != null,
+  ).length;
 }
 
 function renderNext() {
@@ -431,14 +435,15 @@ function renderNext() {
 
 async function saveAndNext() {
   if (!(await saveCurrent())) return;
-  const next = nextToReview(app.order, app.jobs, ed.id);
+  ed.confirmed.add(ed.id);
+  const next = nextToReview(app.order, app.jobs, ed.id, ed.confirmed);
   if (next == null) {
     close();
     toast("Wszystkie pliki są sprawdzone.");
     return;
   }
   stop();
-  await openEditor(next);
+  await openEditor(next, { chained: true });
 }
 
 async function savePattern() {

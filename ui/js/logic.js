@@ -38,12 +38,16 @@ export function filterTest(key) {
   return (FILTERS.find((f) => f.key === key) ?? FILTERS[0]).test;
 }
 
-/** Next file in list order (after `currentId`, wrapping) that needs a look and can be opened in the editor. */
-export function nextToReview(order, jobs, currentId) {
+/**
+ * Next file in list order (after `currentId`, wrapping) that needs a look and
+ * can be opened in the editor. Ids in `skip` (already confirmed in this round,
+ * whose update may not have reached the list yet) are left out.
+ */
+export function nextToReview(order, jobs, currentId, skip = new Set()) {
   const i = order.indexOf(currentId);
   for (let k = 1; k <= order.length; k++) {
     const job = jobs.get(order[(i + k) % order.length]);
-    if (job && job.id !== currentId && job.duration != null && needsReview(job)) return job.id;
+    if (job && job.id !== currentId && !skip.has(job.id) && job.duration != null && needsReview(job)) return job.id;
   }
   return null;
 }
