@@ -1,0 +1,15 @@
+{
+  "name": "schtomy-podcast",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "SCh Tomy podcast audio tool (Tauri app)",
+  "scripts": {
+    "tauri": "tauri",
+    "test:ui": "node --test \"ui-tests/*.test.mjs\"",
+    "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.6"
+  }
+}

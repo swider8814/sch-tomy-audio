@@ -13,7 +13,8 @@ writes tagged MP3 files. Users are non-technical, on Windows and macOS.
 | `crates/podcast-core/` | All audio logic, no Tauri dependency. ffmpeg runner, probe, filter builders, parsers, pipeline, VAD (Silero via tract), teaser patterns, naming, ID3 tags, settings. |
 | `crates/podcast-core/tests/` | Integration tests; they generate audio with ffmpeg at runtime. |
 | `src-tauri/` | Tauri app: commands, job queue, events. `binaries/` holds downloaded sidecars (git-ignored). |
-| `ui/` | Frontend (no bundler). `ui/tests/` are `node --test` tests. |
+| `ui/` | Frontend (no bundler, served as is). |
+| `ui-tests/` | `node --test` tests of the frontend helpers. |
 | `scripts/` | `fetch-ffmpeg.mjs` + `ffmpeg-sources.json` (pinned URLs and SHA-256), icon generation. |
 | `tools/vad/` | One-off script that derived the bundled VAD model from upstream Silero. |
 | `docs/threat-model.md`, `SECURITY.md` | Security model. |
@@ -28,7 +29,7 @@ node scripts/fetch-ffmpeg.mjs            # downloads into src-tauri/binaries/
 export SCHTOMY_FFMPEG=/path/to/ffmpeg SCHTOMY_FFPROBE=/path/to/ffprobe   # optional override
 
 cargo test -p podcast-core               # unit + integration tests
-node --test ui/tests/                    # frontend helpers
+npm run test:ui                          # frontend helpers (node --test)
 npm ci && npx tauri dev                  # run the app
 npx tauri build                          # installers (needs the sidecars)
 ```

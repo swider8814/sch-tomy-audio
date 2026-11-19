@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SCh Tomy Podcast</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Przygotowanie kazań do podcastu</h1>
+        <p class="sub">Społeczność Chrześcijańska Tomy</p>
+      </div>
+      <button id="btn-settings" type="button">Ustawienia</button>
+    </header>
+
+    <div id="banners" aria-live="polite"></div>
+
+    <main>
+      <section id="drop" class="dropzone" aria-label="Dodawanie plików">
+        <p class="big">Przeciągnij pliki tutaj</p>
+        <p class="hint">
+          Nagrania MP3, WAV, M4A, MP4, MOV, WEBM i inne. Możesz przeciągnąć kilka plików naraz albo cały folder.
+        </p>
+        <button id="btn-add" class="primary" type="button">Wybierz pliki</button>
+      </section>
+
+      <section id="list-section">
+        <div class="list-toolbar">
+          <span id="summary"></span>
+          <span class="spacer"></span>
+          <button id="btn-clear" type="button">Usuń gotowe z listy</button>
+          <button id="btn-cancel" class="danger" type="button">Anuluj obróbkę</button>
+          <button id="btn-start" class="primary" type="button">Przetwórz wszystkie</button>
+        </div>
+        <div id="overall" hidden>
+          <div class="bar"><div id="overall-fill"></div></div>
+          <span id="overall-text"></span>
+        </div>
+        <table id="jobs">
+          <thead>
+            <tr>
+              <th class="c-title">Plik i tytuł odcinka</th>
+              <th class="c-start">Początek kazania</th>
+              <th class="c-status">Stan</th>
+              <th class="c-result">Wynik</th>
+              <th class="c-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="job-rows"></tbody>
+        </table>
+        <p id="empty" class="empty">Lista jest pusta. Dodaj nagrania, żeby zacząć.</p>
+      </section>
+    </main>
+
+    <!-- Cut editor: waveform of the beginning and the end -->
+    <dialog id="editor" class="wide">
+      <form method="dialog" class="dialog-body" id="editor-form">
+        <h2 id="ed-title">Cięcie nagrania</h2>
+        <p class="hint" id="ed-info"></p>
+
+        <div class="wave-panel">
+          <div class="wave-head">
+            <h3>Początek nagrania</h3>
+            <span class="hint" id="ed-head-range"></span>
+          </div>
+          <canvas id="wave-head" height="140" aria-label="Przebieg fali początku nagrania"></canvas>
+          <div class="wave-controls">
+            <button type="button" data-play="head">▶ Odtwórz od kursora</button>
+            <button type="button" data-stop>■ Zatrzymaj</button>
+            <span class="cursor-label">Kursor: <b id="cursor-head">00:00,0</b></span>
+            <span class="spacer"></span>
+            <button type="button" class="primary" id="set-start">Ustaw start w miejscu kursora</button>
+          </div>
+        </div>
+
+        <div class="wave-panel">
+          <div class="wave-head">
+            <h3>Koniec nagrania</h3>
+            <span class="hint" id="ed-tail-range"></span>
+          </div>
+          <canvas id="wave-tail" height="110" aria-label="Przebieg fali końca nagrania"></canvas>
+          <div class="wave-controls">
+            <button type="button" data-play="tail">▶ Odtwórz od kursora</button>
+            <button type="button" data-stop>■ Zatrzymaj</button>
+            <span class="cursor-label">Kursor: <b id="cursor-tail">00:00,0</b></span>
+            <span class="spacer"></span>
+            <button type="button" id="set-end">Ustaw koniec w miejscu kursora</button>
+          </div>
+        </div>
+
+        <p class="hint">Kliknij w przebieg fali, żeby ustawić kursor. Spacja uruchamia i zatrzymuje odtwarzanie.</p>
+
+        <div class="marker-fields">
+          <label>Start (mm:ss,d)
+            <input id="ed-start" type="text" inputmode="decimal" placeholder="brak" autocomplete="off" />
+          </label>
+          <button type="button" id="ed-clear-start">Bez cięcia początku</button>
+          <label>Koniec (mm:ss,d), opcjonalnie
+            <input id="ed-end" type="text" inputmode="decimal" placeholder="do końca" autocomplete="off" />
+          </label>
+          <button type="button" id="ed-clear-end">Bez cięcia końca</button>
+        </div>
+        <div id="ed-suggestions" class="suggestions"></div>
+        <p id="ed-error" class="error-text" role="alert"></p>
+
+        <details class="pattern-box" id="pattern-box">
+          <summary>Zapisz zajawkę serii jako wzorzec</summary>
+          <p class="hint">
+            Zaznacz fragment z zajawką serii (zwykle od 00:00,0 do znacznika start). Dla kolejnych plików aplikacja sama
+            znajdzie tę zajawkę i ustawi start zaraz po niej.
+          </p>
+          <div class="marker-fields">
+            <label>Nazwa (np. nazwa serii)
+              <input id="pat-name" type="text" maxlength="100" autocomplete="off" />
+            </label>
+            <label>Od
+              <input id="pat-from" type="text" inputmode="decimal" value="00:00,0" autocomplete="off" />
+            </label>
+            <label>Do
+              <input id="pat-to" type="text" inputmode="decimal" autocomplete="off" />
+            </label>
+            <button type="button" id="pat-save">Zapisz jako zajawkę</button>
+          </div>
+          <p id="pat-msg" class="hint" role="status"></p>
+        </details>
+
+        <div class="dialog-buttons">
+          <button type="button" id="ed-cancel">Anuluj</button>
+          <button type="button" class="primary" id="ed-save">Zapisz znaczniki</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Settings -->
+    <dialog id="settings" class="wide">
+      <form method="dialog" class="dialog-body" id="settings-form">
+        <h2>Ustawienia</h2>
+
+        <fieldset>
+          <legend>Intro, outro i okładka</legend>
+          <div class="file-row" data-file="intro">
+            <span class="label">Intro</span>
+            <span class="path" data-path></span>
+            <button type="button" data-choose>Wybierz plik</button>
+            <button type="button" data-clear>Usuń</button>
+          </div>
+          <div class="file-row" data-file="outro">
+            <span class="label">Outro</span>
+            <span class="path" data-path></span>
+            <button type="button" data-choose>Wybierz plik</button>
+            <button type="button" data-clear>Usuń</button>
+          </div>
+          <div class="file-row" data-file="cover">
+            <span class="label">Okładka (JPG)</span>
+            <span class="path" data-path></span>
+            <button type="button" data-choose>Wybierz plik</button>
+            <button type="button" data-clear>Usuń</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Gdzie zapisać wyniki</legend>
+          <label class="inline"><input type="radio" name="outmode" value="beside" /> Obok oryginału</label>
+          <label class="inline"><input type="radio" name="outmode" value="folder" /> W wybranym folderze</label>
+          <div class="file-row" data-file="output_dir">
+            <span class="path" data-path></span>
+            <button type="button" data-choose>Wybierz folder</button>
+          </div>
+          <p class="hint">Plik wynikowy dostaje nazwę oryginału z dopiskiem „-podcast”. Oryginał nigdy nie jest nadpisywany.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Przerwy i cisza</legend>
+          <div class="grid">
+            <label>Przerwa po intro (s)
+              <input name="gap_after_intro" type="number" min="0" max="3" step="0.1" />
+            </label>
+            <label>Przerwa przed outro (s)
+              <input name="gap_before_outro" type="number" min="0" max="3" step="0.1" />
+            </label>
+            <label>Przejście między częściami (ms)
+              <input name="crossfade_ms" type="number" min="0" max="5000" step="50" />
+            </label>
+          </div>
+          <label class="inline"><input name="trim_trailing" type="checkbox" /> Przycinaj ciszę na końcu nagrania (zostaje przerwa przed outro)</label>
+          <div class="grid">
+            <label>Próg ciszy (dB)
+              <input name="threshold_db" type="number" min="-90" max="-20" step="1" />
+            </label>
+            <label>Minimalna długość ciszy (s)
+              <input name="min_duration" type="number" min="0.1" max="30" step="0.1" />
+            </label>
+          </div>
+          <label class="inline"><input name="trim_leading" type="checkbox" /> Przycinaj ciszę na początku (zwykle niepotrzebne, bo początek ustala znacznik start)</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Głośność i format</legend>
+          <div class="grid">
+            <label>Docelowa głośność (LUFS)
+              <input name="target_lufs" type="number" min="-36" max="-6" step="0.5" />
+            </label>
+            <label>Maksymalny szczyt (dBTP)
+              <input name="target_tp" type="number" min="-9" max="0" step="0.1" />
+            </label>
+            <label>Zakres dynamiki LRA (LU)
+              <input name="target_lra" type="number" min="1" max="50" step="1" />
+            </label>
+            <label>Jakość MP3 (kb/s)
+              <select name="bitrate_kbps">
+                <option value="96">96</option>
+                <option value="128">128</option>
+                <option value="160">160</option>
+                <option value="192">192</option>
+                <option value="256">256</option>
+                <option value="320">320</option>
+              </select>
+            </label>
+            <label>Kanały
+              <select name="channels">
+                <option value="2">Stereo</option>
+                <option value="1">Mono</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Zajawki serii</legend>
+          <div class="grid">
+            <label>Próg pewności dopasowania (%)
+              <input name="pattern_threshold" type="number" min="20" max="99" step="1" />
+            </label>
+            <label>Szukaj w pierwszych (min)
+              <input name="search_window_min" type="number" min="1" max="15" step="1" />
+            </label>
+          </div>
+          <p class="hint">Poniżej progu dopasowanie jest tylko propozycją do sprawdzenia.</p>
+          <ul id="pattern-list" class="pattern-list"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tagi i wydajność</legend>
+          <div class="grid">
+            <label>Wykonawca
+              <input name="artist" type="text" maxlength="200" />
+            </label>
+            <label>Album
+              <input name="album" type="text" maxlength="200" />
+            </label>
+            <label>Ile plików obrabiać naraz
+              <input name="concurrency" type="number" min="1" max="4" step="1" />
+            </label>
+          </div>
+        </fieldset>
+
+        <p id="settings-error" class="error-text" role="alert"></p>
+        <div class="dialog-buttons">
+          <button type="button" id="settings-defaults">Przywróć domyślne</button>
+          <span class="spacer"></span>
+          <button type="button" id="settings-cancel">Anuluj</button>
+          <button type="button" class="primary" id="settings-save">Zapisz</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Technical log -->
+    <dialog id="logdlg" class="wide">
+      <form method="dialog" class="dialog-body">
+        <h2 id="log-title">Szczegóły</h2>
+        <p id="log-message"></p>
+        <details open>
+          <summary>Log techniczny</summary>
+          <pre id="log-text"></pre>
+        </details>
+        <div class="dialog-buttons">
+          <button type="button" id="log-copy">Kopiuj log</button>
+          <span class="spacer"></span>
+          <button value="close" class="primary">Zamknij</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
