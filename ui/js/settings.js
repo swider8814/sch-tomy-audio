@@ -33,6 +33,8 @@ const DEFAULTS = {
   check_updates: true,
   theme: "system",
   notify_done: true,
+  enhance_voice: false,
+  watch_dir: null,
 };
 
 const field = (name) => form().elements.namedItem(name);
@@ -44,6 +46,8 @@ export function openSettings(tab = "basic") {
   renderSpeakers();
   $("#settings-error").textContent = "";
   $("#update-status").textContent = "";
+  $("#bundle-status").textContent = "";
+  $("#speaker-status").textContent = "";
   showTab(tab);
   dlg().showModal();
 }
@@ -69,7 +73,7 @@ function showTabOf(el) {
 
 function fill() {
   const s = draft;
-  for (const name of ["intro", "outro", "cover", "output_dir", "youtube_dir"]) showPath(name);
+  for (const name of ["intro", "outro", "cover", "output_dir", "youtube_dir", "watch_dir"]) showPath(name);
   form().querySelector(`input[name=outmode][value=${s.output_dir ? "folder" : "beside"}]`).checked = true;
   field("gap_after_intro").value = s.gap_after_intro;
   field("gap_before_outro").value = s.gap_before_outro;
@@ -90,6 +94,7 @@ function fill() {
   field("concurrency").value = s.concurrency;
   field("check_updates").checked = s.check_updates !== false;
   field("notify_done").checked = s.notify_done !== false;
+  field("enhance_voice").checked = !!s.enhance_voice;
   form().querySelector(`input[name=theme][value=${themeOf(s.theme)}]`).checked = true;
   $("#about-version").textContent = app.version;
 }
@@ -101,6 +106,7 @@ function showPath(name) {
   span.classList.toggle("missing", !v && (name === "intro" || name === "outro"));
   if (name === "output_dir") span.textContent = v ?? "Nie wybrano folderu";
   else if (name === "youtube_dir") span.textContent = v ?? `${app.defaultYoutubeDir} (domyślny)`;
+  else if (name === "watch_dir") span.textContent = v ?? "Wyłączone";
   else if (name === "cover") span.textContent = v ?? "Brak okładki (opcjonalna)";
   else span.textContent = v ?? `Nie ustawiono ${name}`;
 }
@@ -147,12 +153,16 @@ function collect() {
   s.concurrency = Math.round(num("concurrency", { min: 1, max: 4, label: "Ile plików naraz" }));
   s.check_updates = field("check_updates").checked;
   s.notify_done = field("notify_done").checked;
+  s.enhance_voice = field("enhance_voice").checked;
   s.theme = themeOf(form().querySelector("input[name=theme]:checked")?.value);
   return s;
 }
 
 async function choose(name) {
-  if (name === "youtube_dir") {
+  if (name === "watch_dir") {
+    const r = await tauriDialog().open({ directory: true, title: "Wybierz folder, do którego trafiają nowe nagrania" });
+    if (r) draft.watch_dir = Array.isArray(r) ? r[0] : r;
+  } else if (name === "youtube_dir") {
     const r = await tauriDialog().open({ directory: true, title: "Wybierz folder na nagrania z YouTube" });
     if (r) draft.youtube_dir = Array.isArray(r) ? r[0] : r;
   } else if (name === "output_dir") {
@@ -181,11 +191,82 @@ function patternButton(label, cls, onclick) {
   return h("button", { type: "button", class: cls, onclick }, label);
 }
 
+async function addSpeakers() {
+  const status = $("#speaker-status");
+  const text = $("#speaker-text").value;
+  if (!text.trim()) {
+    status.textContent = "Wklej nazwiska albo wczytaj plik.";
+    return;
+  }
+  try {
+    const r = await invoke("add_speakers", { text });
+    app.speakers = r.speakers;
+    renderSpeakers();
+    status.textContent = r.added
+      ? `Dodano: ${r.added}.${r.found > r.added ? ` Pominięto (już są na liście): ${r.found - r.added}.` : ""}`
+      : "Wszystkie te nazwiska są już na liście.";
+    if (r.added) $("#speaker-text").value = "";
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
+async function exportBundle() {
+  const status = $("#bundle-status");
+  const path = await tauriDialog().save({
+    title: "Zapisz ustawienia do pliku",
+    defaultPath: "ustawienia-sch-tomy-audio.schtomy",
+    filters: [{ name: "Ustawienia SCh Tomy Audio", extensions: ["schtomy"] }],
+  });
+  if (!path) return;
+  status.textContent = "Zapisywanie...";
+  try {
+    const saved = await invoke("export_settings", { path });
+    status.textContent = `Zapisano: ${saved}. Zapisane są ustawienia sprzed otwarcia tego okna.`;
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
+async function importBundle() {
+  const status = $("#bundle-status");
+  const [path] = await pickFiles({
+    title: "Wczytaj ustawienia z pliku",
+    filters: [{ name: "Ustawienia SCh Tomy Audio", extensions: ["schtomy"] }],
+  });
+  if (!path) return;
+  const ok = await tauriDialog().ask(
+    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i kaznodzieje zostaną dodane do obecnych. Foldery zostaną bez zmian.",
+    { title: "Wczytywanie ustawień", kind: "warning", okLabel: "Wczytaj", cancelLabel: "Anuluj" },
+  );
+  if (!ok) return;
+  status.textContent = "Wczytywanie...";
+  try {
+    const r = await invoke("import_settings", { path });
+    setSettings(r.settings, r.patterns);
+    app.speakers = r.speakers;
+    draft = structuredClone(r.settings);
+    fill();
+    renderPatterns();
+    renderSpeakers();
+    const s = r.summary;
+    const files = [s.intro && "intro", s.outro && "outro", s.cover && "okładka"].filter(Boolean);
+    const parts = ["Wczytano ustawienia."];
+    if (files.length) parts.push(`Pliki: ${files.join(", ")}.`);
+    parts.push(`Nowe zajawki: ${s.patternsAdded}.`);
+    if (s.patternsSkipped) parts.push(`Pominięte (już są): ${s.patternsSkipped}.`);
+    parts.push(`Nowi kaznodzieje: ${s.speakersAdded}.`);
+    status.textContent = parts.join(" ");
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
 function renderSpeakers() {
   const ul = $("#speaker-settings-list");
   ul.replaceChildren();
   if (!app.speakers.length) {
-    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków."));
+    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
     return;
   }
   for (const name of app.speakers) {
@@ -264,6 +345,23 @@ function setup() {
     ev.preventDefault();
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  $("#bundle-export").addEventListener("click", exportBundle);
+  $("#speaker-add").addEventListener("click", addSpeakers);
+  $("#speaker-file").addEventListener("click", async () => {
+    const [p] = await pickFiles({
+      title: "Wczytaj listę kaznodziei",
+      filters: [{ name: "Plik tekstowy", extensions: ["txt", "csv"] }],
+    });
+    if (!p) return;
+    try {
+      const text = await invoke("read_link_file", { path: p });
+      const box = $("#speaker-text");
+      box.value = box.value.trim() ? `${box.value.trim()}\n${text}` : text;
+    } catch (e) {
+      $("#speaker-status").textContent = errorText(e);
+    }
+  });
+  $("#bundle-import").addEventListener("click", importBundle);
   // The theme is previewed at once; closing without saving goes back to the saved one.
   for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));
   dlg().addEventListener("close", () => applyTheme(app.settings?.theme));

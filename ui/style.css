@@ -139,6 +139,9 @@ td.c-actions { width: 8%; text-align: right; white-space: nowrap; }
 .suffix-row .hint { white-space: nowrap; }
 .suffix-input { flex: 1; min-width: 0; font-size: 0.85rem; padding: 0.2rem 0.4rem; }
 .speaker-hint { margin-top: 0.3rem; }
+.speaker-import { margin: 0.4rem 0; }
+.speaker-import summary { cursor: pointer; font-weight: 600; }
+#speaker-text { width: 100%; margin-top: 0.4rem; font: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.55rem; background: var(--field); color: inherit; resize: vertical; }
 .title-preview { margin-top: 0.25rem; font-size: 0.8rem; word-break: break-word; }
 .empty { color: var(--muted); text-align: center; padding: 1.5rem; }
 

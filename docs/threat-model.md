@@ -264,6 +264,31 @@ abused to download and run an "update".
 That is the same trust as installing the app in the first place (see Out of
 scope, code signing).
 
+### T13. Settings files from another computer, watched folder
+
+*Threat:* a crafted `.schtomy` file (import) writes files outside the app's
+folder, smuggles a non-audio file in as intro/outro, exhausts memory, or
+sets extreme values; a watched folder picks up files the user did not mean
+to add.
+
+*Mitigations (`podcast_core::bundle`, `podcast_core::watch`):*
+* The import reads at most 300 MB, refuses unknown formats and newer
+  versions, and bounds every embedded file before decoding it (intro/outro
+  100 MB, cover 10 MB, at most 200 patterns of at most 180 s).
+* Files are written only to `<app data>/imported` under fixed names
+  (`intro.<ext>`, `outro.<ext>`, `okladka.jpg`); the original name only
+  contributes a known audio extension, anything else becomes `.bin`, so
+  `../` or odd names cannot escape. The cover must start with a JPEG
+  signature. Imported intro/outro are later ffmpeg inputs with the same
+  protections as T1 to T3. Settings go through `Settings::sanitized`.
+* Machine-specific folders (results, YouTube, watched) are never exported
+  or imported. The user confirms the import first.
+* The watched folder only adds media files directly in the chosen folder
+  (no subfolders, no hidden files, not our own outputs) that appeared after
+  it was chosen; they go through the same pipeline as dropped files.
+  Tests: `imported_files_cannot_escape_or_lie`, `rejects_foreign_and_broken_files`,
+  `baseline_is_not_added`.
+
 ## Out of scope
 
 * **Code signing / notarisation**: deliberately not done (no paid

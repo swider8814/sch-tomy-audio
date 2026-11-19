@@ -64,6 +64,12 @@ pub struct Settings {
     pub theme: String,
     /// System notification when all queued files are finished.
     pub notify_done: bool,
+    /// Speech clean-up of the recording (`filters::VOICE_CHAIN`). Off by
+    /// default so the sound never changes without the user's choice.
+    pub enhance_voice: bool,
+    /// Watched folder: new recordings appearing there are added
+    /// automatically (`watch::WatchState`). `None` = off.
+    pub watch_dir: Option<PathBuf>,
 }
 
 impl Default for Settings {
@@ -91,6 +97,8 @@ impl Default for Settings {
             check_updates: true,
             theme: "system".into(),
             notify_done: true,
+            enhance_voice: false,
+            watch_dir: None,
         }
     }
 }
@@ -221,6 +229,7 @@ mod tests {
         assert!(s.check_updates);
         assert_eq!(s.theme, "system");
         assert!(s.notify_done);
+        assert!(!s.enhance_voice);
     }
 
     #[test]

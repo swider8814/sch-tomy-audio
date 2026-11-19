@@ -3,9 +3,11 @@
 //! Everything here is independent of the GUI so it can be tested with plain
 //! `cargo test` on every platform.
 
+pub mod bundle;
 pub mod error;
 pub mod ffmpeg;
 pub mod filters;
+pub mod history;
 pub mod naming;
 pub mod parse;
 pub mod pcm;
@@ -16,6 +18,7 @@ pub mod speakers;
 pub mod tags;
 pub mod teaser;
 pub mod vad;
+pub mod watch;
 pub mod youtube;
 
 pub use error::{CoreError, ErrorKind, Result};

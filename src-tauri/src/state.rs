@@ -27,6 +27,8 @@ pub struct Inner {
     pub shutting_down: bool,
     /// Remembered speaker names, most recent first (`podcast_core::speakers`).
     pub speakers: Vec<String>,
+    /// Processed recordings, newest first (`podcast_core::history`).
+    pub history: Vec<podcast_core::history::Entry>,
 }
 
 pub struct AppState {
@@ -46,6 +48,12 @@ pub struct AppState {
     /// The job list of the previous session is restored from here.
     queue_path: PathBuf,
     pub speakers_path: PathBuf,
+    pub history_path: PathBuf,
+    /// Watched folder state (`podcast_core::watch`), saved to `watch_path`.
+    watch: Mutex<podcast_core::watch::WatchState>,
+    watch_path: PathBuf,
+    /// Intro, outro and cover imported from a settings file live here.
+    pub imported_dir: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -60,6 +68,20 @@ impl AppState {
         let queue_path = data_dir.join("queue.json");
         let speakers_path = data_dir.join("speakers.json");
         let speakers = podcast_core::speakers::load(&speakers_path);
+        let history_path = data_dir.join("history.json");
+        let history = podcast_core::history::load(&history_path);
+        let watch_path = data_dir.join("watch.json");
+        let mut watch = podcast_core::watch::WatchState::load(&watch_path);
+        // A folder chosen in an older settings file (or changed by hand):
+        // what is there now is the baseline, as when choosing it in the app.
+        let current = settings
+            .watch_dir
+            .as_deref()
+            .map(crate::commands::media_in)
+            .unwrap_or_default();
+        if watch.set_dir(settings.watch_dir.clone(), &current) {
+            let _ = watch.save(&watch_path);
+        }
         let jobs: Vec<Job> = std::fs::read(&queue_path)
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<JobView>>(&b).ok())
@@ -82,6 +104,7 @@ impl AppState {
                 patterns,
                 shutting_down: false,
                 speakers,
+                history,
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
@@ -95,6 +118,22 @@ impl AppState {
             workers: Mutex::new(Vec::new()),
             queue_path,
             speakers_path,
+            history_path,
+            watch: Mutex::new(watch),
+            watch_path,
+            imported_dir: data_dir.join("imported"),
+        }
+    }
+
+    /// Chooses the watched folder: its current files are not added.
+    pub fn set_watch_dir(&self, dir: Option<PathBuf>) {
+        let current = dir
+            .as_deref()
+            .map(crate::commands::media_in)
+            .unwrap_or_default();
+        let mut w = self.watch.lock().unwrap_or_else(|e| e.into_inner());
+        if w.set_dir(dir, &current) {
+            let _ = w.save(&self.watch_path);
         }
     }
 
@@ -226,6 +265,10 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
     {
         let s = state.clone();
         handles.push(std::thread::spawn(move || keep_awake_worker(s)));
+    }
+    {
+        let (a, s) = (app.clone(), state.clone());
+        handles.push(std::thread::spawn(move || watch_worker(a, s)));
     }
     state
         .workers
@@ -459,7 +502,14 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 )
             }
         };
+        // Fingerprint for the "already processed" warning; read before taking
+        // the lock (it reads up to 2 MiB of the recording).
+        let file_key = result
+            .as_ref()
+            .ok()
+            .and_then(|_| podcast_core::history::file_key(&task.input.recording).ok());
         let mut done_speaker = None;
+        let mut done_entry = None;
         let mut g = state.lock();
         if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
             j.log = log;
@@ -468,8 +518,27 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 Ok(r) => {
                     j.view.status = Status::Done;
                     j.view.progress = 1.0;
+                    let output = r
+                        .output
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
                     j.view.result = Some(r);
                     done_speaker = podcast_core::speakers::speaker_of(&j.view.title_suffix);
+                    let mut keys: Vec<String> = file_key.into_iter().collect();
+                    if let Some(id) = j
+                        .view
+                        .source_url
+                        .as_deref()
+                        .and_then(|u| podcast_core::youtube::parse_video_id(u).ok())
+                    {
+                        keys.push(podcast_core::history::youtube_key(&id));
+                    }
+                    done_entry = Some(podcast_core::history::Entry {
+                        keys,
+                        processed_at: podcast_core::history::now(),
+                        output,
+                    });
                 }
                 Err(e) if e.is_cancelled() => {
                     j.view.status = Status::Cancelled;
@@ -482,6 +551,11 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 }
             }
             emit_job(&app, &j.view);
+        }
+        if let Some(entry) = done_entry {
+            podcast_core::history::record(&mut g.history, entry);
+            // Under the lock, like the speakers below: no lost updates.
+            let _ = podcast_core::history::save(&state.history_path, &g.history);
         }
         if let Some(name) = done_speaker {
             podcast_core::speakers::remember(&mut g.speakers, &name);
@@ -604,6 +678,60 @@ fn queue_saver(state: Arc<AppState>) {
             }
         }
         state.save_queue(&mut last);
+    }
+}
+
+/// How often the watched folder is checked.
+const WATCH_INTERVAL: Duration = Duration::from_secs(5);
+
+/// Adds recordings that appear in the watched folder (`podcast_core::watch`).
+fn watch_worker(app: AppHandle, state: Arc<AppState>) {
+    loop {
+        let start = Instant::now();
+        while start.elapsed() < WATCH_INTERVAL {
+            std::thread::sleep(Duration::from_millis(250));
+            if state.lock().shutting_down {
+                return;
+            }
+        }
+        let Some(dir) = state.lock().settings.watch_dir.clone() else {
+            continue;
+        };
+        if !dir.is_dir() {
+            continue; // e.g. a disconnected network drive; try again later
+        }
+        let files: Vec<(PathBuf, u64, u64)> = crate::commands::media_in(&dir)
+            .into_iter()
+            .filter_map(|f| {
+                let m = std::fs::metadata(&f).ok()?;
+                let mtime = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis() as u64)
+                    .unwrap_or(0);
+                Some((f, m.len(), mtime))
+            })
+            .collect();
+        let ready = {
+            let mut w = state.watch.lock().unwrap_or_else(|e| e.into_inner());
+            if w.dir.as_deref() != Some(dir.as_path()) {
+                continue; // the folder is being changed right now
+            }
+            let before = w.seen.len();
+            let ready = w.poll(&files);
+            if !ready.is_empty() || w.seen.len() != before {
+                let _ = w.save(&state.watch_path);
+            }
+            ready
+        };
+        if !ready.is_empty() {
+            let n = crate::commands::add_paths(&app, &state, ready);
+            if n > 0 {
+                let _ = app.emit("watch-added", n);
+            }
+            state.wake.notify_all();
+        }
     }
 }
 

@@ -85,8 +85,20 @@ pub struct RenderPlan {
     pub pad_after_recording: f64,
     /// Crossfade between segments, seconds (0 = plain concatenation).
     pub crossfade: f64,
+    /// Clean up the recorded speech ([`VOICE_CHAIN`]); intro and outro are
+    /// never touched.
+    pub enhance_voice: bool,
     pub format: OutputFormat,
 }
+
+/// Optional speech clean-up applied to the recording only: a 4th-order
+/// high-pass at 80 Hz (two 2-pole stages, 24 dB/octave) removes rumble and
+/// 50 Hz mains hum below the lowest male voice fundamentals, then a gentle
+/// FFT denoiser lowers steady background noise by up to 12 dB while tracking
+/// how the noise floor changes. Mild on purpose, so voices do not sound
+/// processed.
+pub const VOICE_CHAIN: &str =
+    "highpass=f=80:poles=2,highpass=f=80:poles=2,afftdn=nr=12:nf=-50:tn=1";
 
 /// Formats seconds for filter options (locale independent, no exponent).
 pub fn secs(v: f64) -> String {
@@ -166,6 +178,10 @@ pub fn build_concat_graph(plan: &RenderPlan, idx: InputIndices) -> String {
         "[{r}:a:0]asetpts=PTS-STARTPTS,{trim},asetpts=PTS-STARTPTS,{norm}",
         r = idx.recording
     );
+    if plan.enhance_voice {
+        rec.push(',');
+        rec.push_str(VOICE_CHAIN);
+    }
     if plan.pad_after_recording > 0.0 {
         rec.push_str(&format!(",apad=pad_dur={}", secs(plan.pad_after_recording)));
     }
@@ -365,7 +381,35 @@ mod tests {
             gap_after_intro: 1.0,
             pad_after_recording: 1.0,
             crossfade: 0.0,
+            enhance_voice: false,
             format: OutputFormat::default(),
+        }
+    }
+
+    #[test]
+    fn voice_chain_only_on_the_recording_when_enabled() {
+        let idx = InputIndices {
+            intro: Some(0),
+            recording: 1,
+            outro: Some(2),
+        };
+        let off = build_concat_graph(&plan(true, true), idx);
+        assert!(
+            !off.contains("afftdn") && !off.contains("highpass"),
+            "{off}"
+        );
+        let mut p = plan(true, true);
+        p.enhance_voice = true;
+        let on = build_concat_graph(&p, idx);
+        let rec = on.split(';').find(|c| c.starts_with("[1:a:0]")).unwrap();
+        assert!(rec.contains(VOICE_CHAIN), "{rec}");
+        // before the generated pause, so the pause stays digital silence
+        assert!(
+            rec.find(VOICE_CHAIN).unwrap() < rec.find("apad").unwrap(),
+            "{rec}"
+        );
+        for c in on.split(';').filter(|c| !c.starts_with("[1:a:0]")) {
+            assert!(!c.contains("afftdn"), "{c}");
         }
     }
 

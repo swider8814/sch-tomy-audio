@@ -76,6 +76,28 @@ pub struct JobView {
     pub analysis_note: Option<String>,
     pub result: Option<ProcessResult>,
     pub error: Option<ErrorView>,
+    /// This recording was processed before (from `history.json`).
+    #[serde(default)]
+    pub duplicate: Option<DuplicateView>,
+}
+
+/// When and as what a recording was processed before.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateView {
+    /// Unix seconds.
+    pub processed_at: i64,
+    /// File name of the episode produced then.
+    pub output: String,
+}
+
+impl From<&podcast_core::history::Entry> for DuplicateView {
+    fn from(e: &podcast_core::history::Entry) -> Self {
+        Self {
+            processed_at: e.processed_at,
+            output: e.output.clone(),
+        }
+    }
 }
 
 pub struct Job {
@@ -127,6 +149,7 @@ impl Job {
                 analysis_note: None,
                 result: None,
                 error: None,
+                duplicate: None,
             },
             cancel: CancelToken::new(),
             log: String::new(),

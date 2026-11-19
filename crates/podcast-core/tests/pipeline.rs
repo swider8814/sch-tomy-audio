@@ -367,3 +367,74 @@ fn cancel_stops_and_leaves_no_files() {
     let after: Vec<_> = std::fs::read_dir(t.dir.path()).unwrap().collect();
     assert_eq!(before.len(), after.len(), "temporary files left behind");
 }
+
+/// Speech over 50 Hz mains hum and steady background noise, with 4 s of
+/// only hum and noise before the speech starts.
+fn noisy_speech(t: &TestDir) -> std::path::PathBuf {
+    let rec = t.path("nagranie z buczeniem.wav");
+    let fixture = speech_fixture();
+    common::ffmpeg(&[
+        "-i",
+        &fixture.to_string_lossy(),
+        "-filter_complex",
+        "[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=mono,adelay=4000:all=1,apad=pad_dur=1[s];\
+         sine=f=50:sample_rate=44100:duration=30,volume=0.08[h];\
+         anoisesrc=color=pink:amplitude=0.02:seed=3:sample_rate=44100:duration=30[n];\
+         [s][h][n]amix=inputs=3:duration=first:normalize=0[out]",
+        "-map",
+        "[out]",
+        &rec.to_string_lossy(),
+    ]);
+    rec
+}
+
+#[test]
+fn voice_enhancement_removes_hum_and_lowers_background_noise() {
+    let t = TestDir::new();
+    let rec = noisy_speech(&t);
+    let plain = run_job(&Settings::default(), &rec, Cut::default());
+    let enhanced_settings = Settings {
+        enhance_voice: true,
+        ..Default::default()
+    };
+    let enhanced = run_job(&enhanced_settings, &rec, Cut::default());
+
+    // Both still reach the loudness target and keep the length.
+    for r in [&plain, &enhanced] {
+        assert!(
+            approx(r.loudness.integrated, -16.0, 0.5),
+            "integrated {}",
+            r.loudness.integrated
+        );
+        assert!(
+            approx(r.duration, plain.duration, 0.1),
+            "duration {}",
+            r.duration
+        );
+    }
+
+    // Hum at 50 Hz relative to the speech level drops a lot.
+    let hum = |f: &Path| tone_db(f, 5.0, 8.0, 50.0) - rms_db(f, 5.0, 8.0);
+    let (hum_plain, hum_enh) = (hum(&plain.output), hum(&enhanced.output));
+    assert!(
+        hum_plain - hum_enh >= 10.0,
+        "hum {hum_plain:.1} dB -> {hum_enh:.1} dB"
+    );
+
+    // The pause before the speech (only noise) gets quieter relative to speech.
+    let floor = |f: &Path| rms_db(f, 0.5, 3.0) - rms_db(f, 5.0, 8.0);
+    let (floor_plain, floor_enh) = (floor(&plain.output), floor(&enhanced.output));
+    assert!(
+        floor_plain - floor_enh >= 6.0,
+        "noise floor {floor_plain:.1} dB -> {floor_enh:.1} dB"
+    );
+
+    // The speech itself is kept: its level relative to the target barely moves.
+    let speech = |f: &Path| rms_db(f, 5.0, 8.0);
+    assert!(approx(speech(&plain.output), speech(&enhanced.output), 2.0));
+}
+
+#[test]
+fn voice_enhancement_is_off_by_default() {
+    assert!(!Settings::default().enhance_voice);
+}

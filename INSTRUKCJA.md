@@ -55,16 +55,17 @@ xattr -dr com.apple.quarantine "/Applications/SCh Tomy Audio.app"
 
 ## 4. Pierwsze uruchomienie: ustawienia
 
-Kliknij **Ustawienia** w prawym górnym rogu. Ustawienia są podzielone na trzy zakładki: **Podstawowe**, **Dźwięk** oraz **Zajawki i zaawansowane**. Na początek wystarczy zakładka **Podstawowe**:
+Kliknij **Ustawienia** w prawym górnym rogu. Ustawienia są podzielone na pięć zakładek: **Podstawowe**, **Dźwięk**, **Zajawki i zaawansowane**, **Skróty klawiszowe** oraz **O programie**. Na początek wystarczy zakładka **Podstawowe**:
 
 * **Intro** i **Outro**: kliknij **Wybierz plik** i wskaż nagranie intro oraz outro. Bez nich aplikacja też działa (przytnie i wyrówna nagrania), ale na górze okna zobaczysz żółte przypomnienie.
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
 * **Gdzie zapisać gotowe pliki**: „Obok oryginału” albo wybrany folder.
 * **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
+* **Obserwowany folder** (opcjonalnie): wskaż folder, do którego trafiają nowe nagrania, np. z komputera nagrywającego nabożeństwo albo z dysku sieciowego. Każde nowe nagranie, które się w nim pojawi, aplikacja sama doda do listy, gdy plik skończy się kopiować. Pliki, które już są w folderze w chwili jego wyboru, nie są dodawane. Działa też wtedy, gdy nagranie pojawiło się przy wyłączonej aplikacji: zostanie dodane przy następnym uruchomieniu. Przycisk **Wyłącz** wyłącza obserwowanie.
 * **Powiadomienia**: gdy obróbka wszystkich plików się skończy, a okno aplikacji nie jest na wierzchu, system pokaże powiadomienie. Przy pierwszej obróbce Windows albo macOS może zapytać o zgodę na powiadomienia.
 * **Wygląd**: „Jak w systemie” (aplikacja jest jasna albo ciemna tak jak Windows czy macOS), „Jasny” albo „Ciemny”. Wygląd zmienisz też szybko ikonką na górnym pasku, obok „Ustawienia”: księżyc włącza ciemny wygląd, słońce jasny. Żeby wrócić do „Jak w systemie”, wybierz tę opcję w Ustawieniach.
 * **Tagi MP3**: wykonawca i album zapisywane w każdym pliku.
-* W zakładce **Dźwięk** są przerwy, cisza, głośność i format MP3, a w zakładce **Zajawki i zaawansowane** zapisane zajawki serii i liczba plików obrabianych naraz. Te wartości są już dobrze ustawione. Nie musisz ich zmieniać.
+* W zakładce **Dźwięk** są przerwy, cisza, poprawa dźwięku mowy, głośność i format MP3, a w zakładce **Zajawki i zaawansowane** zapisane zajawki serii, zapamiętani kaznodzieje, przeniesienie ustawień na inny komputer i liczba plików obrabianych naraz. Te wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 
 Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
 
@@ -80,13 +81,15 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
    Gdy zatrzymasz kursor myszy nad etykietą, zobaczysz więcej szczegółów (np. pewność dopasowania zajawki).
 3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
    * **Tytuł kazania** (większe pole), np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto. Klawisz **Enter** przenosi Cię do tytułu następnego pliku, więc tytuły możesz wpisywać jeden po drugim.
-   * **Kaznodzieja i data** (mniejsze pole pod spodem), np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić. Podczas pisania aplikacja podpowiada kaznodziejów z wcześniejszych odcinków. Gdy nazwisko wygląda na literówkę (np. „Szumorke” zamiast „Szumorek”), pod polem pojawi się pytanie „Czy chodziło o...?” z przyciskiem **Popraw**. Listę zapamiętanych kaznodziei (i usuwanie z niej literówek) znajdziesz w Ustawieniach, w zakładce „Zajawki i zaawansowane”.
+   * **Kaznodzieja i data** (mniejsze pole pod spodem), np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić. Podczas pisania aplikacja podpowiada kaznodziejów z wcześniejszych odcinków. Gdy nazwisko wygląda na literówkę (np. „Szumorke” zamiast „Szumorek”), pod polem pojawi się pytanie „Czy chodziło o...?” z przyciskiem **Popraw**. Listę zapamiętanych kaznodziei (i usuwanie z niej literówek) znajdziesz w Ustawieniach, w zakładce „Zajawki i zaawansowane”. Tam też, pod **Dodaj listę kaznodziei**, wkleisz od razu wiele nazwisk (np. ze strony kościoła, każde w osobnym wierszu) albo wczytasz je z pliku .txt.
 
    Gdy zatrzymasz kursor myszy nad małym znakiem **i** obok, zobaczysz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
 4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Sprawdź początek** (patrz punkt 6). W oknie cięcia przycisk **Zatwierdź i następny** zapisuje zmiany i od razu otwiera kolejny plik do sprawdzenia.
    Nad listą są filtry: **Wszystkie**, **Do sprawdzenia**, **Bez tytułu**, **Błędy** i **Gotowe**. Liczba w nawiasie mówi, ile plików pasuje. Kliknij filtr, żeby zobaczyć tylko te pliki.
 5. Kliknij **Przetwórz wszystkie**. Postęp widać przy każdym pliku i nad listą. Możesz w każdej chwili kliknąć **Anuluj obróbkę**.
 6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przyciski **▶ Początek** i **▶ Koniec** odtwarzają w aplikacji początek gotowego odcinka (intro, przerwa i początek kazania) albo jego koniec (koniec kazania, przerwa i outro), żeby szybko sprawdzić przejścia. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
+
+   Jeśli dodasz nagranie, które było już kiedyś przetworzone (także kopię pod inną nazwą albo ten sam film z YouTube), w kolumnie „Stan” pojawi się ostrzeżenie „To nagranie przetworzono już ...” z datą. Plik nadal możesz przetworzyć, ostrzeżenie chroni tylko przed przypadkową podwójną publikacją.
 
    W trakcie obróbki nad listą widać, ile plików jest gotowych i mniej więcej ile czasu zostało do końca.
 
@@ -149,6 +152,7 @@ Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, 
 * Jeśli na końcu nagrania jest cisza (na przykład pusta plansza w filmie z YouTube), zostaje z niej 1 sekunda przed outro. Jeśli ciszy nie ma, aplikacja dodaje 1 sekundę.
 * Krótkie pauzy w środku kazania nigdy nie są wycinane.
 * Długości przerw (od 0 do 3 sekund) i czułość wykrywania ciszy zmienisz w Ustawieniach, w zakładce „Dźwięk”.
+* **Poprawa dźwięku mowy** (zakładka „Dźwięk”, domyślnie wyłączona) usuwa buczenie i niskie dudnienie (np. od nagłośnienia albo stuknięć w mikrofon) i wycisza stały szum w tle. Działa tylko na nagranie kazania, intro i outro zostają bez zmian. Włącz ją, gdy nagrania mają szum sali albo buczenie, i odsłuchaj efekt przyciskiem **▶ Początek** przy gotowym pliku.
 
 ## 9. Gdy coś pójdzie nie tak
 
@@ -164,3 +168,13 @@ Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, 
 Przy uruchomieniu aplikacja sprawdza na GitHubie, czy jest nowsza wersja. Jeśli jest, na górze okna pojawi się niebieski pasek „Jest nowa wersja aplikacji”. Kliknij **Pobierz nową wersję**: w przeglądarce otworzy się strona wydania, skąd pobierasz instalator tak samo jak za pierwszym razem (punkt 1). Twoje ustawienia, wzorce zajawek i lista plików zostaną zachowane.
 
 Numer Twojej wersji, przycisk **Sprawdź teraz** i wyłącznik automatycznego sprawdzania znajdziesz w **Ustawieniach**, w zakładce **O programie**. Aplikacja sama niczego nie pobiera ani nie instaluje.
+
+## 11. Drugi komputer: przeniesienie ustawień
+
+Jeśli odcinki przygotowuje więcej osób, nie trzeba wszystkiego ustawiać od nowa.
+
+1. Na komputerze, na którym wszystko jest ustawione, otwórz **Ustawienia**, zakładkę **Zajawki i zaawansowane**, i kliknij **Zapisz ustawienia do pliku**. Powstanie jeden plik z końcówką `.schtomy`.
+2. Przenieś ten plik na drugi komputer (np. pendrive'em albo e-mailem).
+3. Na drugim komputerze w tym samym miejscu kliknij **Wczytaj ustawienia z pliku** i wskaż plik.
+
+W pliku są intro, outro, okładka, zajawki serii, zapamiętani kaznodzieje i pozostałe ustawienia. Foldery (na gotowe pliki, na nagrania z YouTube i obserwowany) zostają takie, jak były na drugim komputerze, bo na każdym komputerze mogą być inne. Zajawki i kaznodzieje są dodawane do tych, które już tam są.

@@ -183,3 +183,41 @@ pub fn speech_fixture() -> PathBuf {
 pub fn approx(a: f64, b: f64, tol: f64) -> bool {
     (a - b).abs() <= tol
 }
+
+/// RMS level in dBFS of a fragment (mono mix).
+pub fn rms_db(file: &Path, start: f64, duration: f64) -> f64 {
+    let v = decode_mono_f32(
+        &tools(),
+        file,
+        start,
+        Some(duration),
+        44100,
+        &CancelToken::new(),
+    )
+    .unwrap();
+    let ms = v.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>() / v.len().max(1) as f64;
+    10.0 * ms.max(1e-20).log10()
+}
+
+/// Level in dB of one frequency in a fragment (Goertzel, relative to full scale).
+pub fn tone_db(file: &Path, start: f64, duration: f64, freq: f64) -> f64 {
+    let v = decode_mono_f32(
+        &tools(),
+        file,
+        start,
+        Some(duration),
+        44100,
+        &CancelToken::new(),
+    )
+    .unwrap();
+    let w = 2.0 * std::f64::consts::PI * freq / 44100.0;
+    let (mut s1, mut s2) = (0.0f64, 0.0f64);
+    for x in &v {
+        let s0 = *x as f64 + 2.0 * w.cos() * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+    }
+    let power = s1 * s1 + s2 * s2 - 2.0 * w.cos() * s1 * s2;
+    let amplitude = 2.0 * power.sqrt() / v.len().max(1) as f64;
+    20.0 * amplitude.max(1e-12).log10()
+}

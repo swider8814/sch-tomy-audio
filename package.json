@@ -2,7 +2,7 @@
   "name": "schtomy-audio",
   "private": true,
   "type": "module",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "SCh Tomy Audio: prepares sermon recordings for the church podcast (Tauri app)",
   "scripts": {
     "tauri": "tauri",

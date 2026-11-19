@@ -99,20 +99,26 @@ pub fn get_state(state: St<'_>) -> StateView {
     }
 }
 
+/// Recordings directly in `dir` (not in subfolders), without our own
+/// outputs and hidden/temporary files, in name order.
+pub fn media_in(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|f| f.is_file() && is_media(f) && !is_our_output(f))
+        .collect();
+    files.sort();
+    files
+}
+
 fn expand(paths: Vec<String>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for p in paths {
         let p = PathBuf::from(p);
         if p.is_dir() {
-            let mut files: Vec<PathBuf> = std::fs::read_dir(&p)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .map(|e| e.path())
-                .filter(|f| f.is_file() && is_media(f) && !is_our_output(f))
-                .collect();
-            files.sort();
-            out.extend(files);
+            out.extend(media_in(&p));
         } else if p.is_file() {
             out.push(p);
         }
@@ -143,21 +149,47 @@ fn is_our_output(p: &Path) -> bool {
 
 #[tauri::command]
 pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
-    let files = expand(paths);
+    add_paths(&app, state.inner(), expand(paths))
+}
+
+/// Adds recordings (skipping ones already on the list) and marks those
+/// processed before. Used by `add_files` and the watched folder.
+pub fn add_paths(app: &AppHandle, state: &Arc<AppState>, files: Vec<PathBuf>) -> usize {
     let mut g = state.lock();
-    let mut added = 0;
+    let mut new: Vec<(u64, PathBuf)> = Vec::new();
     for f in files {
         if g.jobs.iter().any(|j| j.view.path == f) {
             continue;
         }
         let id = g.next_id;
         g.next_id += 1;
+        new.push((id, f.clone()));
         g.jobs.push(Job::new(id, f));
-        added += 1;
     }
-    emit_jobs(&app, &g);
+    emit_jobs(app, &g);
     drop(g);
     state.wake.notify_all();
+    let added = new.len();
+    // "Processed before" check in the background: each fingerprint reads up to
+    // 2 MiB, which must not hold up the window for a big or networked folder.
+    if !new.is_empty() {
+        let (app, state) = (app.clone(), state.clone());
+        std::thread::spawn(move || {
+            for (id, path) in new {
+                let Ok(key) = podcast_core::history::file_key(&path) else {
+                    continue;
+                };
+                let mut g = state.lock();
+                let dup = podcast_core::history::find(&g.history, &[key]).map(Into::into);
+                if dup.is_some() {
+                    if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == id) {
+                        j.view.duplicate = dup;
+                        emit_job(&app, &j.view);
+                    }
+                }
+            }
+        });
+    }
     added
 }
 
@@ -171,6 +203,8 @@ pub struct YoutubeAdded {
     invalid: Vec<String>,
     /// Folder the audio is saved to.
     dir: String,
+    /// Added, but processed before (see `JobView::duplicate`).
+    processed_before: usize,
 }
 
 /// Adds YouTube links (one per line; a single link works too). Each video
@@ -197,6 +231,7 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
     let mut g = state.lock();
     let mut added = 0;
     let mut skipped = list.duplicates;
+    let mut processed_before = 0;
     for id in &list.ids {
         let canonical = podcast_core::youtube::canonical_url(id);
         if g.jobs
@@ -208,7 +243,12 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
         }
         let job_id = g.next_id;
         g.next_id += 1;
-        g.jobs.push(Job::new_youtube(job_id, id));
+        let mut job = Job::new_youtube(job_id, id);
+        job.view.duplicate =
+            podcast_core::history::find(&g.history, &[podcast_core::history::youtube_key(id)])
+                .map(Into::into);
+        processed_before += usize::from(job.view.duplicate.is_some());
+        g.jobs.push(job);
         added += 1;
     }
     emit_jobs(&app, &g);
@@ -217,6 +257,7 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
     Ok(YoutubeAdded {
         added,
         skipped,
+        processed_before,
         invalid,
         dir: state
             .youtube_dir(&state.lock().settings)
@@ -514,6 +555,141 @@ pub fn result_preview_range(part: &str, duration: f64) -> (f64, f64) {
     }
 }
 
+/// Saves the setup to a `.schtomy` file chosen by the user (settings, intro,
+/// outro, cover, patterns, speakers; never the machine-specific folders).
+#[tauri::command(async)]
+pub fn export_settings(state: St<'_>, path: String) -> Result<String, String> {
+    let mut path = PathBuf::from(path);
+    if path
+        .extension()
+        .is_none_or(|e| !e.eq_ignore_ascii_case("schtomy"))
+    {
+        path.set_extension("schtomy");
+    }
+    let (settings, speakers) = {
+        let g = state.lock();
+        (g.settings.clone(), g.speakers.clone())
+    };
+    let bytes = podcast_core::bundle::export(
+        &settings,
+        &state.store,
+        &speakers,
+        env!("CARGO_PKG_VERSION"),
+    )
+    .map_err(|e| {
+        if e.details.contains("too many patterns") {
+            "Za dużo zapisanych zajawek (ponad 200). Usuń niepotrzebne w zakładce Zajawki i zaawansowane i spróbuj ponownie.".to_string()
+        } else if e.details.contains("import limit") {
+            "Plik z ustawieniami byłby za duży (ponad 300 MB). Użyj mniejszych plików intro i outro.".to_string()
+        } else {
+            format!(
+                "Nie udało się przygotować pliku z ustawieniami. Sprawdź, czy pliki intro, outro i okładki są na swoim miejscu. ({})",
+                e.details
+            )
+        }
+    })?;
+    podcast_core::settings::write_atomic(&path, &bytes)
+        .map_err(|_| "Nie udało się zapisać pliku. Wybierz inny folder.".to_string())?;
+    Ok(path.display().to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    settings: Settings,
+    patterns: Vec<PatternMeta>,
+    speakers: Vec<String>,
+    summary: podcast_core::bundle::ImportSummary,
+}
+
+/// Loads a `.schtomy` file: replaces the settings (folders stay as they are
+/// on this computer), adds patterns and speakers.
+#[tauri::command(async)]
+pub fn import_settings(
+    app: AppHandle,
+    state: St<'_>,
+    path: String,
+) -> Result<ImportResult, String> {
+    let bundle = podcast_core::bundle::read(Path::new(&path)).map_err(|e| {
+        if e.details.contains("newer version") {
+            "Ten plik pochodzi z nowszej wersji aplikacji. Zaktualizuj aplikację i spróbuj ponownie.".to_string()
+        } else {
+            "To nie jest plik z ustawieniami SCh Tomy Audio albo jest uszkodzony.".to_string()
+        }
+    })?;
+    let current = state.lock().settings.clone();
+    let mut speakers = state.lock().speakers.clone();
+    let (settings, summary) = podcast_core::bundle::apply(
+        &bundle,
+        &current,
+        &state.imported_dir,
+        &state.store,
+        &mut speakers,
+    )
+    .map_err(|_| {
+        "Nie udało się wczytać ustawień z tego pliku. Plik może być uszkodzony.".to_string()
+    })?;
+    settings
+        .save(&state.settings_path)
+        .map_err(|e| format!("{} ({})", e.user_message(), e.details))?;
+    {
+        // The new settings are in place before any worker wakes up; a new
+        // search window also invalidates the VAD proposals (as in save_settings).
+        let mut g = state.lock();
+        let window_changed = g.settings.search_window_s != settings.search_window_s;
+        g.settings = settings.clone();
+        g.settings_note = None;
+        if window_changed {
+            for j in g.jobs.iter_mut() {
+                if matches!(
+                    j.view.status,
+                    Status::Waiting | Status::Cancelled | Status::Error | Status::Analyzing
+                ) && !j.needs_download()
+                {
+                    j.vad_generation += 1;
+                    j.needs_analysis = true;
+                }
+            }
+        }
+        g.speakers = speakers;
+        let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+        let _ = app.emit("speakers", &g.speakers);
+    }
+    // re-searches teasers with the new patterns and settings, then wakes workers
+    state.reload_patterns();
+    emit_jobs(&app, &state.lock());
+    let g = state.lock();
+    Ok(ImportResult {
+        settings,
+        patterns: state.store.list(),
+        speakers: g.speakers.clone(),
+        summary,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeakersAdded {
+    speakers: Vec<String>,
+    added: usize,
+    found: usize,
+}
+
+/// Adds speaker names pasted or loaded from a file (one per line).
+#[tauri::command]
+pub fn add_speakers(app: AppHandle, state: St<'_>, text: String) -> SpeakersAdded {
+    let names = podcast_core::speakers::parse_list(&text);
+    let mut g = state.lock();
+    let added = podcast_core::speakers::add_all(&mut g.speakers, &names);
+    let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+    let _ = app.emit("speakers", &g.speakers);
+    SpeakersAdded {
+        speakers: g.speakers.clone(),
+        added,
+        found: names.len(),
+    }
+}
+
 /// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {
@@ -611,6 +787,7 @@ pub fn save_settings(
         .map_err(|e| format!("{} ({})", e.user_message(), e.details))?;
     let mut g = state.lock();
     let window_changed = g.settings.search_window_s != s.search_window_s;
+    let watch_changed = g.settings.watch_dir != s.watch_dir;
     g.settings = s.clone();
     g.settings_note = None;
     let threshold = s.pattern_threshold;
@@ -631,6 +808,9 @@ pub fn save_settings(
     }
     emit_jobs(&app, &g);
     drop(g);
+    if watch_changed {
+        state.set_watch_dir(s.watch_dir.clone());
+    }
     state.wake.notify_all();
     Ok(s)
 }
