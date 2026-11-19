@@ -41,7 +41,7 @@ export function openSettings(tab = "basic") {
   dlg().showModal();
 }
 
-const TABS = ["basic", "sound", "advanced"];
+const TABS = ["basic", "sound", "advanced", "keys"];
 
 function showTab(name) {
   for (const t of TABS) {

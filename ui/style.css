@@ -274,3 +274,19 @@ pre#log-text {
 .num { display: inline-flex; align-items: center; gap: 0.35rem; }
 .num input { width: 6.5rem; }
 .unit { color: var(--muted); font-size: 0.85rem; }
+
+table.keys { background: none; width: auto; margin: 0.2rem 0; }
+table.keys td { border: none; padding: 0.3rem 1.2rem 0.3rem 0; vertical-align: middle; }
+table.keys td:first-child { white-space: nowrap; }
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #fafbfc;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: center;
+}

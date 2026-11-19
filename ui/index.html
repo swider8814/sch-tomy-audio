@@ -128,9 +128,9 @@
         </div>
 
         <p class="hint">
-          Kliknij w przebieg fali, żeby ustawić kursor. Kółko myszy przybliża i oddala falę.
-          Skróty: spacja odtwarza i zatrzymuje, strzałki przesuwają kursor o 0,1 s (z Shift o 1 s),
-          S ustawia start, E ustawia koniec, + i - zmieniają powiększenie.
+          Kliknij w przebieg fali, żeby ustawić kursor. Kółko myszy przybliża i oddala falę. Spacja odtwarza i
+          zatrzymuje, S ustawia start, E ustawia koniec. Wszystkie skróty znajdziesz w Ustawieniach, w zakładce
+          „Skróty klawiszowe”.
         </p>
 
         <div class="marker-fields">
@@ -205,6 +205,7 @@
           <button type="button" role="tab" id="tab-basic" aria-controls="panel-basic" aria-selected="true">Podstawowe</button>
           <button type="button" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" tabindex="-1">Dźwięk</button>
           <button type="button" role="tab" id="tab-advanced" aria-controls="panel-advanced" aria-selected="false" tabindex="-1">Zajawki i zaawansowane</button>
+          <button type="button" role="tab" id="tab-keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1">Skróty klawiszowe</button>
         </div>
 
         <div class="tab-panel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
@@ -360,6 +361,35 @@
               </label>
             </div>
             <p class="hint">Więcej plików naraz to szybsza obróbka całej listy, ale większe obciążenie komputera.</p>
+          </fieldset>
+        </div>
+
+        <div class="tab-panel" id="panel-keys" role="tabpanel" aria-labelledby="tab-keys" hidden>
+          <fieldset>
+            <legend>Okno cięcia</legend>
+            <table class="keys">
+              <tbody>
+                <tr><td><kbd>Spacja</kbd></td><td>Odtwórz od kursora albo zatrzymaj</td></tr>
+                <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Przesuń kursor o 0,1 sekundy</td></tr>
+                <tr><td><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td>Przesuń kursor o 1 sekundę</td></tr>
+                <tr><td><kbd>S</kbd></td><td>Ustaw start w miejscu kursora (górny przebieg)</td></tr>
+                <tr><td><kbd>E</kbd></td><td>Ustaw koniec w miejscu kursora (dolny przebieg)</td></tr>
+                <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Przybliż albo oddal przebieg fali</td></tr>
+                <tr><td>Kółko myszy</td><td>Przybliż albo oddal wokół wskaźnika myszy</td></tr>
+                <tr><td><kbd>Shift</kbd> + kółko myszy</td><td>Przewiń przebieg w bok</td></tr>
+                <tr><td><kbd>Esc</kbd></td><td>Zamknij okno bez zapisywania</td></tr>
+              </tbody>
+            </table>
+            <p class="hint">Skróty nie działają, gdy piszesz w polu tekstowym (np. w tytule albo czasie startu). Kliknij w przebieg fali, żeby znów z nich korzystać.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Lista plików</legend>
+            <table class="keys">
+              <tbody>
+                <tr><td><kbd>Enter</kbd></td><td>W polu tytułu: przejdź do tytułu następnego pliku</td></tr>
+                <tr><td><kbd>Tab</kbd></td><td>Przejdź do następnego pola albo przycisku</td></tr>
+              </tbody>
+            </table>
           </fieldset>
         </div>
 

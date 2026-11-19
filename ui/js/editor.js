@@ -141,7 +141,10 @@ function draw(name) {
   const canvas = $(p.canvas);
   const dpr = window.devicePixelRatio || 1;
   const cssW = canvas.clientWidth || 800;
-  const cssH = Number(canvas.getAttribute("height"));
+  // The CSS height comes from the markup; `canvas.height` below is the pixel
+  // size (CSS height x devicePixelRatio) and must not be read back as CSS.
+  if (!canvas.dataset.cssHeight) canvas.dataset.cssHeight = canvas.getAttribute("height");
+  const cssH = Number(canvas.dataset.cssHeight);
   if (canvas.width !== Math.round(cssW * dpr)) {
     canvas.width = Math.round(cssW * dpr);
     p.peaks = null;
