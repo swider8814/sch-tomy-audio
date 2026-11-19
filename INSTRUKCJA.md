@@ -10,7 +10,7 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 
 Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i kaznodziei z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
-Aplikacja działa bez internetu i niczego nie wysyła. Wyjątek: pobieranie nagrania z YouTube, gdy sam wkleisz link.
+Aplikacja działa bez internetu i niczego o Tobie nie wysyła. Internetu używa tylko w dwóch sytuacjach: przy pobieraniu nagrania z YouTube, gdy sam wkleisz link, oraz przy sprawdzaniu, czy jest nowa wersja aplikacji (patrz punkt 10).
 
 ## 1. Pobranie
 
@@ -94,7 +94,7 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 **Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.
 
-To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
+Z YouTube aplikacja łączy się tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
 
 ## 6. Ustawianie początku i końca (Sprawdź początek / Edytuj cięcie)
 
@@ -148,3 +148,9 @@ Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, 
 * „Nie udało się odczytać pliku”: sprawdź, czy to na pewno nagranie audio albo wideo i czy plik otwiera się w innym odtwarzaczu.
 * „Nie udało się zapisać wyniku”: sprawdź, czy folder wyjściowy istnieje i czy na dysku jest wolne miejsce.
 * Jeśli zamkniesz aplikację w trakcie obróbki, niedokończone pliki zostaną usunięte. Oryginały zostają nietknięte.
+
+## 10. Nowa wersja aplikacji
+
+Przy uruchomieniu aplikacja sprawdza na GitHubie, czy jest nowsza wersja. Jeśli jest, na górze okna pojawi się niebieski pasek „Jest nowa wersja aplikacji”. Kliknij **Pobierz nową wersję**: w przeglądarce otworzy się strona wydania, skąd pobierasz instalator tak samo jak za pierwszym razem (punkt 1). Twoje ustawienia, wzorce zajawek i lista plików zostaną zachowane.
+
+Numer Twojej wersji, przycisk **Sprawdź teraz** i wyłącznik automatycznego sprawdzania znajdziesz w **Ustawieniach**, w zakładce **O programie**. Aplikacja sama niczego nie pobiera ani nie instaluje.

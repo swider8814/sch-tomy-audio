@@ -74,3 +74,35 @@ export function zoomView(view, factor, anchor, minLen = 2) {
   const newStart = a - ((a - start) / len) * newLen;
   return { len: newLen, start: Math.min(Math.max(newStart, offset), offset + length - newLen) };
 }
+
+// ------------------------------------------------------------- updates
+
+export const RELEASES_PAGE = "https://github.com/swider8814/sch-tomy-audio/releases";
+export const LATEST_RELEASE_API = "https://api.github.com/repos/swider8814/sch-tomy-audio/releases/latest";
+
+/** "v0.1.10" / "0.1.10" -> [0, 1, 10]; null for anything else. */
+export function parseVersion(text) {
+  const m = /^v?(\d{1,4})\.(\d{1,4})\.(\d{1,4})$/.exec(String(text ?? "").trim());
+  return m ? m.slice(1).map(Number) : null;
+}
+
+/** True when release tag `latest` is a newer version than `current`. */
+export function isNewerVersion(latest, current) {
+  const a = parseVersion(latest);
+  const b = parseVersion(current);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i];
+  return false;
+}
+
+/**
+ * Reads the GitHub "latest release" answer. Returns { version, url } only for
+ * a well-formed tag and a link to this project's releases page.
+ */
+export function releaseInfo(json) {
+  const version = parseVersion(json?.tag_name);
+  if (!version) return null;
+  const url = String(json?.html_url ?? "");
+  const safe = url.startsWith(`${RELEASES_PAGE}/`) && /^[A-Za-z0-9/._-]+$/.test(url.slice("https://".length));
+  return { version: version.join("."), url: safe ? url : RELEASES_PAGE };
+}

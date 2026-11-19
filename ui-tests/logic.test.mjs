@@ -80,3 +80,30 @@ test("zoomView keeps the anchor in place and stays inside the preview", () => {
   const tail = zoomView({ offset: 3480, length: 120, start: 3480, len: 120 }, 0.25, 3600);
   assert.deepEqual(tail, { start: 3570, len: 30 });
 });
+
+import { isNewerVersion, parseVersion, releaseInfo, RELEASES_PAGE } from "../ui/js/logic.js";
+
+test("version comparison", () => {
+  assert.deepEqual(parseVersion("v0.1.10"), [0, 1, 10]);
+  assert.equal(parseVersion("v0.1.3-beta"), null);
+  assert.equal(parseVersion(""), null);
+  assert.equal(isNewerVersion("v0.1.4", "0.1.3"), true);
+  assert.equal(isNewerVersion("v0.1.10", "0.1.9"), true); // numeric, not text order
+  assert.equal(isNewerVersion("v1.0.0", "0.9.9"), true);
+  assert.equal(isNewerVersion("v0.1.3", "0.1.3"), false);
+  assert.equal(isNewerVersion("v0.1.2", "0.1.3"), false);
+  assert.equal(isNewerVersion("nightly", "0.1.3"), false);
+});
+
+test("release info accepts only this project's release page", () => {
+  assert.deepEqual(releaseInfo({ tag_name: "v0.1.4", html_url: `${RELEASES_PAGE}/tag/v0.1.4` }), {
+    version: "0.1.4",
+    url: `${RELEASES_PAGE}/tag/v0.1.4`,
+  });
+  // anything else falls back to the fixed releases page
+  for (const html_url of ["https://evil.example/x", `${RELEASES_PAGE}.evil.example/x`, `${RELEASES_PAGE}/tag/v1?x=<b>`, null]) {
+    assert.equal(releaseInfo({ tag_name: "v0.1.4", html_url }).url, RELEASES_PAGE);
+  }
+  assert.equal(releaseInfo({ tag_name: "latest" }), null);
+  assert.equal(releaseInfo(null), null);
+});

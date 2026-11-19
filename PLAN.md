@@ -159,9 +159,19 @@ docs/threat-model.md
 * **Editor zoom (v0.1.3):** only the view changes (mouse wheel, +/-
   buttons and keys); the decoded preview stays the same, so zooming needs no
   new ffmpeg call. Shortcuts: space, arrows (0.1 s, Shift 1 s), S, E, +, -.
+* **Update check (v0.1.3):** at the user's request (relaxes the original
+  "no network except YouTube" rule). At start (setting `check_updates`, on by
+  default) and on "Sprawdź teraz" the webview fetches the latest release from
+  the GitHub API (no own server needed; drafts and pre-releases are ignored by
+  that endpoint) and compares versions. A newer one shows a banner that opens
+  the release page; nothing is downloaded or installed by the app (an
+  in-app updater would need signed update bundles and is not worth it for
+  an unsigned app). Threat model T12.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
-  search window, concurrency). A validation error switches to its tab.
+  search window, concurrency), Skróty klawiszowe (read-only list: shortcuts
+are few and conventional, remapping would only make support harder), O
+programie (version, update check). A validation error switches to its tab.
 
 ## Steps
 

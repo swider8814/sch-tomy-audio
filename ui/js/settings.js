@@ -1,7 +1,8 @@
 // Settings dialog.
 
 import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog } from "./util.js";
-import { app, setSettings, setPatterns, MEDIA_EXTENSIONS } from "./app.js";
+import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./app.js";
+import { checkForUpdate, openReleasePage } from "./update.js";
 import { formatTime } from "./format.js";
 
 const dlg = () => $("#settings");
@@ -28,6 +29,7 @@ const DEFAULTS = {
   concurrency: 2,
   artist: "Społeczność Chrześcijańska Tomy",
   album: "SCh Tomy podcast",
+  check_updates: true,
 };
 
 const field = (name) => form().elements.namedItem(name);
@@ -37,11 +39,12 @@ export function openSettings(tab = "basic") {
   fill();
   renderPatterns();
   $("#settings-error").textContent = "";
+  $("#update-status").textContent = "";
   showTab(tab);
   dlg().showModal();
 }
 
-const TABS = ["basic", "sound", "advanced", "keys"];
+const TABS = ["basic", "sound", "advanced", "keys", "about"];
 
 function showTab(name) {
   for (const t of TABS) {
@@ -80,6 +83,8 @@ function fill() {
   field("artist").value = s.artist;
   field("album").value = s.album;
   field("concurrency").value = s.concurrency;
+  field("check_updates").checked = s.check_updates !== false;
+  $("#about-version").textContent = app.version;
 }
 
 function showPath(name) {
@@ -133,6 +138,7 @@ function collect() {
   s.artist = field("artist").value.trim() || DEFAULTS.artist;
   s.album = field("album").value.trim() || DEFAULTS.album;
   s.concurrency = Math.round(num("concurrency", { min: 1, max: 4, label: "Ile plików naraz" }));
+  s.check_updates = field("check_updates").checked;
   return s;
 }
 
@@ -229,6 +235,29 @@ function setup() {
     ev.preventDefault();
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  $("#update-open").addEventListener("click", () => openReleasePage().catch(() => toast("Nie udało się otworzyć przeglądarki.")));
+  $("#update-check").addEventListener("click", async () => {
+    const status = $("#update-status");
+    const btn = $("#update-check");
+    btn.disabled = true;
+    status.textContent = "Sprawdzam...";
+    try {
+      const r = await checkForUpdate(app.version);
+      if (r.newer) {
+        status.replaceChildren(
+          `Jest nowa wersja: ${r.version}. `,
+          h("button", { type: "button", class: "small primary", onclick: () => openReleasePage(r.url).catch(() => {}) }, "Pobierz"),
+        );
+        setUpdate({ version: r.version, url: r.url });
+      } else {
+        status.textContent = `Masz najnowszą wersję (${app.version}).`;
+      }
+    } catch (e) {
+      status.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
   $("#settings-defaults").addEventListener("click", () => {
     draft = structuredClone(DEFAULTS);
     fill();

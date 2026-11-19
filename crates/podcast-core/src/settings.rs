@@ -58,6 +58,8 @@ pub struct Settings {
     pub concurrency: u8,
     pub artist: String,
     pub album: String,
+    /// Ask GitHub for a newer release when the app starts.
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -82,6 +84,7 @@ impl Default for Settings {
             concurrency: 2,
             artist: crate::tags::DEFAULT_ARTIST.into(),
             album: crate::tags::DEFAULT_ALBUM.into(),
+            check_updates: true,
         }
     }
 }
@@ -203,6 +206,7 @@ mod tests {
         assert_eq!(s.crossfade_ms, 0);
         assert!(s.silence.trim_trailing);
         assert!(!s.silence.trim_leading);
+        assert!(s.check_updates);
     }
 
     #[test]
@@ -236,6 +240,8 @@ mod tests {
         assert_eq!(s.bitrate_kbps, 192);
         assert_eq!(s.channels, 2);
         assert_eq!(s.target_lufs, -16.0);
+        // files from older versions have no `check_updates`: on by default
+        assert!(s.check_updates);
     }
 
     #[test]

@@ -104,5 +104,10 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Privacy
 
-No telemetry. The only network access is the YouTube download started by
-the user. Everything else runs locally.
+No telemetry. Network access happens only in two places: the YouTube
+download started by the user, and the update check (one request to
+`api.github.com/repos/swider8814/sch-tomy-audio/releases/latest` at start,
+which can be turned off in Ustawienia, O programie). Nothing about the user
+or their files is sent, and updates are never downloaded or installed by the
+app: it only opens the release page in the browser. Everything else runs
+locally.

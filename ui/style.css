@@ -250,7 +250,7 @@ pre#log-text {
 .chip.warn { color: var(--warn); border-color: #e7c27a; }
 .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-.info {
+.info-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -275,6 +275,7 @@ pre#log-text {
 .num input { width: 6.5rem; }
 .unit { color: var(--muted); font-size: 0.85rem; }
 
+.update-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.4rem 0; }
 table.keys { background: none; width: auto; margin: 0.2rem 0; }
 table.keys td { border: none; padding: 0.3rem 1.2rem 0.3rem 0; vertical-align: middle; }
 table.keys td:first-child { white-space: nowrap; }

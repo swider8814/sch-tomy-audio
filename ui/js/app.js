@@ -4,6 +4,7 @@ import { formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, S
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
+import { checkForUpdate, openReleasePage } from "./update.js";
 import { FILTERS, filterTest, isBusy as busy, missingSermon, startIsProposal } from "./logic.js";
 
 export const MEDIA_EXTENSIONS = ["mp3", "mp4", "m4a", "webm", "mov", "wav", "aac", "ogg", "opus", "flac", "mkv", "wma", "m4v"];
@@ -19,6 +20,8 @@ export const app = {
   previewTail: 120,
   defaultYoutubeDir: "",
   filter: "all", // key of the active list filter (logic.js FILTERS)
+  version: "",
+  update: null, // { version, url } when a newer release was found and not dismissed
 };
 
 const rows = new Map(); // id -> { tr, title, start, status, result, actions }
@@ -34,6 +37,7 @@ async function refresh() {
   app.previewHead = s.previewHead;
   app.previewTail = s.previewTail;
   app.defaultYoutubeDir = s.defaultYoutubeDir;
+  app.version = s.version;
   setJobs(s.jobs);
   renderBanners();
 }
@@ -55,6 +59,12 @@ export function setSettings(settings, patterns) {
   renderBanners();
 }
 
+/** Shows (or hides with null) the "new version available" banner. */
+export function setUpdate(info) {
+  app.update = info;
+  renderBanners();
+}
+
 export function setPatterns(patterns) {
   app.patterns = patterns;
 }
@@ -69,6 +79,22 @@ function renderBanners() {
   }
   if (app.settingsNote) {
     box.append(h("div", { class: "banner info" }, h("span", { class: "grow" }, app.settingsNote)));
+  }
+  if (app.update) {
+    const u = app.update;
+    box.append(
+      h(
+        "div",
+        { class: "banner info" },
+        h("span", { class: "grow" }, `Jest nowa wersja aplikacji: ${u.version} (masz ${app.version}).`),
+        h(
+          "button",
+          { type: "button", class: "primary", onclick: () => openReleasePage(u.url).catch(() => toast("Nie udało się otworzyć przeglądarki.")) },
+          "Pobierz nową wersję",
+        ),
+        h("button", { type: "button", onclick: () => setUpdate(null) }, "Później"),
+      ),
+    );
   }
   const s = app.settings;
   if (s && (!s.intro || !s.outro)) {
@@ -133,7 +159,7 @@ function createRow(id) {
     placeholder: "Kaznodzieja - RRRR.MM.DD",
     "aria-label": "Kaznodzieja i data",
   });
-  const info = h("span", { class: "info", tabindex: 0, role: "note" }, "i");
+  const info = h("span", { class: "info-dot", tabindex: 0, role: "note" }, "i");
   const save = async () => {
     try {
       await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
@@ -578,6 +604,14 @@ async function main() {
     renderToolbar();
   });
   await refresh();
+  if (app.settings?.check_updates) {
+    // Quietly in the background; a failed check is not worth a message.
+    setTimeout(() => {
+      checkForUpdate(app.version)
+        .then((r) => r.newer && setUpdate({ version: r.version, url: r.url }))
+        .catch(() => {});
+    }, 3000);
+  }
 }
 
 main().catch((e) => {

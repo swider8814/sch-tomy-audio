@@ -206,6 +206,7 @@
           <button type="button" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" tabindex="-1">Dźwięk</button>
           <button type="button" role="tab" id="tab-advanced" aria-controls="panel-advanced" aria-selected="false" tabindex="-1">Zajawki i zaawansowane</button>
           <button type="button" role="tab" id="tab-keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1">Skróty klawiszowe</button>
+          <button type="button" role="tab" id="tab-about" aria-controls="panel-about" aria-selected="false" tabindex="-1">O programie</button>
         </div>
 
         <div class="tab-panel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
@@ -390,6 +391,27 @@
                 <tr><td><kbd>Tab</kbd></td><td>Przejdź do następnego pola albo przycisku</td></tr>
               </tbody>
             </table>
+          </fieldset>
+        </div>
+
+        <div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+          <fieldset>
+            <legend>SCh Tomy Podcast</legend>
+            <p>Wersja <b id="about-version"></b></p>
+            <p class="hint">Przygotowanie nagrań kazań Społeczności Chrześcijańskiej Tomy do podcastu.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Aktualizacje</legend>
+            <label class="inline"><input name="check_updates" type="checkbox" /> Sprawdzaj przy uruchomieniu, czy jest nowa wersja</label>
+            <div class="update-row">
+              <button type="button" id="update-check">Sprawdź teraz</button>
+              <button type="button" id="update-open">Strona z wydaniami</button>
+              <span id="update-status" class="hint" role="status"></span>
+            </div>
+            <p class="hint">
+              Aplikacja pyta tylko GitHub o numer najnowszej wersji. Nie wysyła żadnych informacji o Tobie ani o Twoich plikach.
+              Nowej wersji nie instaluje sama: otwiera stronę wydania w przeglądarce, skąd pobierasz instalator.
+            </p>
           </fieldset>
         </div>
 

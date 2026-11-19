@@ -4,7 +4,8 @@
 
 SCh Tomy Podcast is a local desktop application (Tauri 2: Rust backend,
 HTML/JS frontend in the system webview). There is no server, no account, no
-telemetry and no network access in stage 1. The user drops audio/video files;
+telemetry and no network access in stage 1 (stage 2 adds the YouTube
+download and the update check, T11 and T12). The user drops audio/video files;
 the app runs bundled `ffmpeg`/`ffprobe` executables as child processes and
 writes MP3 files to a folder.
 
@@ -24,6 +25,7 @@ Trust boundaries:
 4. Bundled third-party binaries and model (supply chain).
 5. Build pipeline (GitHub Actions) and dependencies (crates, npm).
 6. Stage 2: YouTube URLs and the bundled yt-dlp.
+7. The update check: the answer of the GitHub API.
 
 ## Threats and mitigations
 
@@ -125,8 +127,9 @@ calls privileged commands.
   never `innerHTML`.
 * Strict CSP in `tauri.conf.json` (`script-src 'self'`, no remote origins),
   `freezePrototype`, no remote content is loaded.
-* Capabilities are minimal (`core:default`, dialog open/ask/message, opener
-  reveal-in-folder); there is no generic shell/fs plugin. Commands validate
+* Capabilities are minimal (`core:default`, window destroy, dialog
+  open/ask/message, opener reveal-in-folder and open-url limited to this
+  project's releases page); there is no generic shell/fs plugin. Commands validate
   their inputs (markers within duration, titles length-limited, pattern
   lengths bounded) and only operate on files the user added.
 
@@ -221,6 +224,40 @@ hanging downloads.
 with the user's privileges, like T1. YouTube changes regularly break older
 yt-dlp versions; updating means a new app release (pinned, reviewed),
 deliberately not an in-app self-update.
+
+### T12. Update check (GitHub API)
+
+*Threat:* the check leaks information about the user, a tampered or spoofed
+answer makes the app open a malicious page or run code, or the check is
+abused to download and run an "update".
+
+*Mitigations (`ui/js/update.js`, `ui/js/logic.js`):*
+* One HTTPS GET of
+  `https://api.github.com/repos/swider8814/sch-tomy-audio/releases/latest`
+  at start (only when "Sprawdzaj przy uruchomieniu" is on, the default) or
+  when the user clicks "Sprawdź teraz". No body, no cookies
+  (`credentials: "omit"`), no referrer, no identifiers; GitHub sees an
+  ordinary request from the user's IP address.
+* The CSP `connect-src` allows only `https://api.github.com` as a remote
+  host, so the webview cannot contact anything else (test
+  `links_and_network_are_narrow` in `src-tauri/src/main.rs`).
+* From the answer only `tag_name` (must match `v?N.N.N`) and `html_url` are
+  used. A link that is not under
+  `https://github.com/swider8814/sch-tomy-audio/releases/` (plain
+  characters only) is replaced by the fixed releases page
+  (`releaseInfo`, tests in `ui-tests/logic.test.mjs`). Text is shown with
+  `textContent` only.
+* The opener capability allows `openUrl` only for
+  `https://github.com/swider8814/sch-tomy-audio/releases*`, so even a
+  compromised frontend cannot open other URLs through it.
+* The app never downloads or installs updates; the user downloads the
+  installer from the release page. Failures are silent at start and shown
+  as a short message on manual checks.
+
+*Residual risk:* someone controlling the GitHub repository could announce a
+"new version" leading to a malicious installer on the real releases page.
+That is the same trust as installing the app in the first place (see Out of
+scope, code signing).
 
 ## Out of scope
 
