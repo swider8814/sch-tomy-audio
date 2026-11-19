@@ -47,6 +47,7 @@ export function openSettings(tab = "basic") {
   $("#settings-error").textContent = "";
   $("#update-status").textContent = "";
   $("#bundle-status").textContent = "";
+  $("#speaker-status").textContent = "";
   showTab(tab);
   dlg().showModal();
 }
@@ -190,6 +191,26 @@ function patternButton(label, cls, onclick) {
   return h("button", { type: "button", class: cls, onclick }, label);
 }
 
+async function addSpeakers() {
+  const status = $("#speaker-status");
+  const text = $("#speaker-text").value;
+  if (!text.trim()) {
+    status.textContent = "Wklej nazwiska albo wczytaj plik.";
+    return;
+  }
+  try {
+    const r = await invoke("add_speakers", { text });
+    app.speakers = r.speakers;
+    renderSpeakers();
+    status.textContent = r.added
+      ? `Dodano: ${r.added}.${r.found > r.added ? ` Pominięto (już są na liście): ${r.found - r.added}.` : ""}`
+      : "Wszystkie te nazwiska są już na liście.";
+    if (r.added) $("#speaker-text").value = "";
+  } catch (e) {
+    status.textContent = errorText(e);
+  }
+}
+
 async function exportBundle() {
   const status = $("#bundle-status");
   const path = await tauriDialog().save({
@@ -245,7 +266,7 @@ function renderSpeakers() {
   const ul = $("#speaker-settings-list");
   ul.replaceChildren();
   if (!app.speakers.length) {
-    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków."));
+    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
     return;
   }
   for (const name of app.speakers) {
@@ -325,6 +346,21 @@ function setup() {
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
   $("#bundle-export").addEventListener("click", exportBundle);
+  $("#speaker-add").addEventListener("click", addSpeakers);
+  $("#speaker-file").addEventListener("click", async () => {
+    const [p] = await pickFiles({
+      title: "Wczytaj listę kaznodziei",
+      filters: [{ name: "Plik tekstowy", extensions: ["txt", "csv"] }],
+    });
+    if (!p) return;
+    try {
+      const text = await invoke("read_link_file", { path: p });
+      const box = $("#speaker-text");
+      box.value = box.value.trim() ? `${box.value.trim()}\n${text}` : text;
+    } catch (e) {
+      $("#speaker-status").textContent = errorText(e);
+    }
+  });
   $("#bundle-import").addEventListener("click", importBundle);
   // The theme is previewed at once; closing without saving goes back to the saved one.
   for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));

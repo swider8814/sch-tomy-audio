@@ -637,6 +637,29 @@ pub fn import_settings(
     })
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeakersAdded {
+    speakers: Vec<String>,
+    added: usize,
+    found: usize,
+}
+
+/// Adds speaker names pasted or loaded from a file (one per line).
+#[tauri::command]
+pub fn add_speakers(app: AppHandle, state: St<'_>, text: String) -> SpeakersAdded {
+    let names = podcast_core::speakers::parse_list(&text);
+    let mut g = state.lock();
+    let added = podcast_core::speakers::add_all(&mut g.speakers, &names);
+    let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+    let _ = app.emit("speakers", &g.speakers);
+    SpeakersAdded {
+        speakers: g.speakers.clone(),
+        added,
+        found: names.len(),
+    }
+}
+
 /// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {

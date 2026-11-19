@@ -38,6 +38,7 @@ fn main() {
             commands::cancel_previews,
             commands::get_result_preview,
             commands::remove_speaker,
+            commands::add_speakers,
             commands::export_settings,
             commands::import_settings,
             commands::get_log,

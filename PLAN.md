@@ -194,7 +194,9 @@ docs/threat-model.md
   field offers them via a `<datalist>` ("Name - <this file's date>"), and a
   name within one or two typos of a known one (ignoring case and Polish
   letters) shows "Czy chodziło o...?" with a fix button. Names can be
-  removed in the settings.
+  removed in the settings, and (v0.1.5) a list can be pasted or loaded
+  from a .txt file (one name per line, bullets and numbering stripped,
+  `speakers::parse_list`), appended after the names used in episodes.
 * **Listening to the result (v0.1.4):** `get_result_preview` decodes the
   first 90 s or last 60 s of the job's own output file to WAV (same path as
   the editor previews) and the UI plays it with WebAudio.

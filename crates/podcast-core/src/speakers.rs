@@ -68,6 +68,54 @@ pub fn remember(list: &mut Vec<String>, name: &str) {
     list.truncate(MAX_SPEAKERS);
 }
 
+/// Names from pasted text or a .txt file: one per line. Bullets ("-", "*",
+/// "•"), numbering ("1.", "2)"), empty lines and `#` comments are skipped,
+/// as are duplicates; at most [`MAX_SPEAKERS`] names.
+pub fn parse_list(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let mut l = line.trim();
+        if l.is_empty() || l.starts_with('#') {
+            continue;
+        }
+        l = l.trim_start_matches(['-', '*', '•', '–', '—']).trim_start();
+        let digits = l.chars().take_while(char::is_ascii_digit).count();
+        if digits > 0 && l[digits..].starts_with(['.', ')']) {
+            l = l[digits + 1..].trim_start();
+        }
+        let name: String = l
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(MAX_NAME_CHARS)
+            .collect();
+        if name.chars().any(char::is_alphabetic) && !out.iter().any(|o| key(o) == key(&name)) {
+            out.push(name);
+        }
+        if out.len() == MAX_SPEAKERS {
+            break;
+        }
+    }
+    out
+}
+
+/// Adds imported names after the existing ones (names used in episodes
+/// stay first); returns how many were new.
+pub fn add_all(list: &mut Vec<String>, names: &[String]) -> usize {
+    let mut added = 0;
+    for n in names {
+        if list.len() >= MAX_SPEAKERS {
+            break;
+        }
+        if !list.iter().any(|o| key(o) == key(n)) {
+            list.push(n.clone());
+            added += 1;
+        }
+    }
+    added
+}
+
 /// Removes `name` (case-insensitively).
 pub fn forget(list: &mut Vec<String>, name: &str) {
     let k = key(name);
@@ -146,6 +194,26 @@ mod tests {
         }
         assert_eq!(l.len(), MAX_SPEAKERS);
         assert_eq!(l[0], "Osoba 399");
+    }
+
+    #[test]
+    fn list_from_pasted_text() {
+        let text = "Pastorzy\n# komentarz\n\n- Adam Szumorek\n* Rafał  Piekarski\n• Ewa Kowalska\n1. Jan Nowak\n2) Piotr Zieliński\n  adam szumorek  \n2026\n";
+        assert_eq!(
+            parse_list(text),
+            [
+                "Pastorzy",
+                "Adam Szumorek",
+                "Rafał Piekarski",
+                "Ewa Kowalska",
+                "Jan Nowak",
+                "Piotr Zieliński"
+            ]
+        );
+        let mut l = vec!["Jan Nowak".to_string()];
+        let added = add_all(&mut l, &parse_list("Ewa Kowalska\njan nowak\nAnna Lis"));
+        assert_eq!(added, 2);
+        assert_eq!(l, ["Jan Nowak", "Ewa Kowalska", "Anna Lis"]);
     }
 
     #[test]

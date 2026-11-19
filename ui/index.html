@@ -399,6 +399,16 @@
           <fieldset>
             <legend>Zapamiętani kaznodzieje</legend>
             <p class="hint">Aplikacja zapamiętuje kaznodziejów z gotowych odcinków i podpowiada ich w polu „Kaznodzieja i data”. Jeśli na liście jest literówka, usuń ją.</p>
+            <details class="speaker-import">
+              <summary>Dodaj listę kaznodziei</summary>
+              <p class="hint">Wklej nazwiska, np. skopiowane ze strony kościoła, każde w osobnym wierszu (w formie „Imię Nazwisko”), albo wczytaj plik .txt. Powtórzone nazwiska i puste wiersze zostaną pominięte.</p>
+              <textarea id="speaker-text" rows="5" placeholder="Adam Szumorek&#10;Rafał Piekarski"></textarea>
+              <div class="update-row">
+                <button type="button" id="speaker-file">Wczytaj z pliku (.txt)</button>
+                <button type="button" class="primary" id="speaker-add">Dodaj do listy</button>
+                <span id="speaker-status" class="hint" role="status"></span>
+              </div>
+            </details>
             <ul id="speaker-settings-list" class="pattern-list"></ul>
           </fieldset>
 
