@@ -785,6 +785,10 @@ async function main() {
   setupDragDrop();
   setupCloseGuard();
   await listen("jobs", (e) => setJobs(e.payload));
+  await listen("watch-added", (e) => {
+    const n = e.payload;
+    toast(`Dodano z obserwowanego folderu: ${n} ${plikow(n)}. Trwa analiza początku nagrań.`, 6000);
+  });
   await listen("speakers", (e) => {
     app.speakers = e.payload ?? [];
     for (const id of app.order) updateRow(app.jobs.get(id));

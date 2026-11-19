@@ -99,20 +99,26 @@ pub fn get_state(state: St<'_>) -> StateView {
     }
 }
 
+/// Recordings directly in `dir` (not in subfolders), without our own
+/// outputs and hidden/temporary files, in name order.
+pub fn media_in(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|f| f.is_file() && is_media(f) && !is_our_output(f))
+        .collect();
+    files.sort();
+    files
+}
+
 fn expand(paths: Vec<String>) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for p in paths {
         let p = PathBuf::from(p);
         if p.is_dir() {
-            let mut files: Vec<PathBuf> = std::fs::read_dir(&p)
-                .into_iter()
-                .flatten()
-                .flatten()
-                .map(|e| e.path())
-                .filter(|f| f.is_file() && is_media(f) && !is_our_output(f))
-                .collect();
-            files.sort();
-            out.extend(files);
+            out.extend(media_in(&p));
         } else if p.is_file() {
             out.push(p);
         }
@@ -143,7 +149,12 @@ fn is_our_output(p: &Path) -> bool {
 
 #[tauri::command]
 pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
-    let files = expand(paths);
+    add_paths(&app, &state, expand(paths))
+}
+
+/// Adds recordings (skipping ones already on the list) and marks those
+/// processed before. Used by `add_files` and the watched folder.
+pub fn add_paths(app: &AppHandle, state: &AppState, files: Vec<PathBuf>) -> usize {
     // Fingerprints are read without holding the lock.
     let files: Vec<(PathBuf, Option<String>)> = files
         .into_iter()
@@ -167,7 +178,7 @@ pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
         g.jobs.push(job);
         added += 1;
     }
-    emit_jobs(&app, &g);
+    emit_jobs(app, &g);
     drop(g);
     state.wake.notify_all();
     added
@@ -632,6 +643,7 @@ pub fn save_settings(
         .map_err(|e| format!("{} ({})", e.user_message(), e.details))?;
     let mut g = state.lock();
     let window_changed = g.settings.search_window_s != s.search_window_s;
+    let watch_changed = g.settings.watch_dir != s.watch_dir;
     g.settings = s.clone();
     g.settings_note = None;
     let threshold = s.pattern_threshold;
@@ -652,6 +664,9 @@ pub fn save_settings(
     }
     emit_jobs(&app, &g);
     drop(g);
+    if watch_changed {
+        state.set_watch_dir(s.watch_dir.clone());
+    }
     state.wake.notify_all();
     Ok(s)
 }

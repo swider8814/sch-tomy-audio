@@ -67,6 +67,9 @@ pub struct Settings {
     /// Speech clean-up of the recording (`filters::VOICE_CHAIN`). Off by
     /// default so the sound never changes without the user's choice.
     pub enhance_voice: bool,
+    /// Watched folder: new recordings appearing there are added
+    /// automatically (`watch::WatchState`). `None` = off.
+    pub watch_dir: Option<PathBuf>,
 }
 
 impl Default for Settings {
@@ -95,6 +98,7 @@ impl Default for Settings {
             theme: "system".into(),
             notify_done: true,
             enhance_voice: false,
+            watch_dir: None,
         }
     }
 }

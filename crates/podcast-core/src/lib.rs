@@ -17,6 +17,7 @@ pub mod speakers;
 pub mod tags;
 pub mod teaser;
 pub mod vad;
+pub mod watch;
 pub mod youtube;
 
 pub use error::{CoreError, ErrorKind, Result};

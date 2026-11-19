@@ -34,6 +34,7 @@ const DEFAULTS = {
   theme: "system",
   notify_done: true,
   enhance_voice: false,
+  watch_dir: null,
 };
 
 const field = (name) => form().elements.namedItem(name);
@@ -70,7 +71,7 @@ function showTabOf(el) {
 
 function fill() {
   const s = draft;
-  for (const name of ["intro", "outro", "cover", "output_dir", "youtube_dir"]) showPath(name);
+  for (const name of ["intro", "outro", "cover", "output_dir", "youtube_dir", "watch_dir"]) showPath(name);
   form().querySelector(`input[name=outmode][value=${s.output_dir ? "folder" : "beside"}]`).checked = true;
   field("gap_after_intro").value = s.gap_after_intro;
   field("gap_before_outro").value = s.gap_before_outro;
@@ -103,6 +104,7 @@ function showPath(name) {
   span.classList.toggle("missing", !v && (name === "intro" || name === "outro"));
   if (name === "output_dir") span.textContent = v ?? "Nie wybrano folderu";
   else if (name === "youtube_dir") span.textContent = v ?? `${app.defaultYoutubeDir} (domyślny)`;
+  else if (name === "watch_dir") span.textContent = v ?? "Wyłączone";
   else if (name === "cover") span.textContent = v ?? "Brak okładki (opcjonalna)";
   else span.textContent = v ?? `Nie ustawiono ${name}`;
 }
@@ -155,7 +157,10 @@ function collect() {
 }
 
 async function choose(name) {
-  if (name === "youtube_dir") {
+  if (name === "watch_dir") {
+    const r = await tauriDialog().open({ directory: true, title: "Wybierz folder, do którego trafiają nowe nagrania" });
+    if (r) draft.watch_dir = Array.isArray(r) ? r[0] : r;
+  } else if (name === "youtube_dir") {
     const r = await tauriDialog().open({ directory: true, title: "Wybierz folder na nagrania z YouTube" });
     if (r) draft.youtube_dir = Array.isArray(r) ? r[0] : r;
   } else if (name === "output_dir") {

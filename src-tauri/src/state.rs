@@ -49,6 +49,9 @@ pub struct AppState {
     queue_path: PathBuf,
     pub speakers_path: PathBuf,
     pub history_path: PathBuf,
+    /// Watched folder state (`podcast_core::watch`), saved to `watch_path`.
+    watch: Mutex<podcast_core::watch::WatchState>,
+    watch_path: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -65,6 +68,18 @@ impl AppState {
         let speakers = podcast_core::speakers::load(&speakers_path);
         let history_path = data_dir.join("history.json");
         let history = podcast_core::history::load(&history_path);
+        let watch_path = data_dir.join("watch.json");
+        let mut watch = podcast_core::watch::WatchState::load(&watch_path);
+        // A folder chosen in an older settings file (or changed by hand):
+        // what is there now is the baseline, as when choosing it in the app.
+        let current = settings
+            .watch_dir
+            .as_deref()
+            .map(crate::commands::media_in)
+            .unwrap_or_default();
+        if watch.set_dir(settings.watch_dir.clone(), &current) {
+            let _ = watch.save(&watch_path);
+        }
         let jobs: Vec<Job> = std::fs::read(&queue_path)
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<JobView>>(&b).ok())
@@ -102,6 +117,20 @@ impl AppState {
             queue_path,
             speakers_path,
             history_path,
+            watch: Mutex::new(watch),
+            watch_path,
+        }
+    }
+
+    /// Chooses the watched folder: its current files are not added.
+    pub fn set_watch_dir(&self, dir: Option<PathBuf>) {
+        let current = dir
+            .as_deref()
+            .map(crate::commands::media_in)
+            .unwrap_or_default();
+        let mut w = self.watch.lock().unwrap_or_else(|e| e.into_inner());
+        if w.set_dir(dir, &current) {
+            let _ = w.save(&self.watch_path);
         }
     }
 
@@ -233,6 +262,10 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
     {
         let s = state.clone();
         handles.push(std::thread::spawn(move || keep_awake_worker(s)));
+    }
+    {
+        let (a, s) = (app.clone(), state.clone());
+        handles.push(std::thread::spawn(move || watch_worker(a, s)));
     }
     state
         .workers
@@ -642,6 +675,51 @@ fn queue_saver(state: Arc<AppState>) {
             }
         }
         state.save_queue(&mut last);
+    }
+}
+
+/// How often the watched folder is checked.
+const WATCH_INTERVAL: Duration = Duration::from_secs(5);
+
+/// Adds recordings that appear in the watched folder (`podcast_core::watch`).
+fn watch_worker(app: AppHandle, state: Arc<AppState>) {
+    loop {
+        let start = Instant::now();
+        while start.elapsed() < WATCH_INTERVAL {
+            std::thread::sleep(Duration::from_millis(250));
+            if state.lock().shutting_down {
+                return;
+            }
+        }
+        let Some(dir) = state.lock().settings.watch_dir.clone() else {
+            continue;
+        };
+        if !dir.is_dir() {
+            continue; // e.g. a disconnected network drive; try again later
+        }
+        let files: Vec<(PathBuf, u64)> = crate::commands::media_in(&dir)
+            .into_iter()
+            .filter_map(|f| std::fs::metadata(&f).ok().map(|m| (f, m.len())))
+            .collect();
+        let ready = {
+            let mut w = state.watch.lock().unwrap_or_else(|e| e.into_inner());
+            if w.dir.as_deref() != Some(dir.as_path()) {
+                continue; // the folder is being changed right now
+            }
+            let before = w.seen.len();
+            let ready = w.poll(&files);
+            if !ready.is_empty() || w.seen.len() != before {
+                let _ = w.save(&state.watch_path);
+            }
+            ready
+        };
+        if !ready.is_empty() {
+            let n = crate::commands::add_paths(&app, &state, ready);
+            if n > 0 {
+                let _ = app.emit("watch-added", n);
+            }
+            state.wake.notify_all();
+        }
     }
 }
 
