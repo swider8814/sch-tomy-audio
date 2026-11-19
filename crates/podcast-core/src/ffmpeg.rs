@@ -52,6 +52,14 @@ fn exe_name(name: &str) -> String {
     }
 }
 
+/// Finds a bundled tool (env override, next to the executable, PATH).
+pub fn find_tool_path(name: &str, env: &str) -> Result<PathBuf> {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf));
+    find_tool(name, env, exe_dir.as_deref())
+}
+
 fn find_tool(name: &str, env: &str, exe_dir: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = std::env::var_os(env) {
         let p = PathBuf::from(p);
@@ -133,6 +141,22 @@ pub enum StdoutMode<'a> {
     Capture,
     /// Parse `-progress pipe:1` lines and report processed seconds.
     Progress(&'a mut dyn FnMut(f64)),
+    /// Hand every stdout line (UTF-8, lossy) to the callback (yt-dlp).
+    Lines(&'a mut dyn FnMut(&str)),
+}
+
+impl StdoutMode<'_> {
+    fn dispatch(&mut self, line: &str) {
+        match self {
+            StdoutMode::Progress(cb) => {
+                if let Some(sec) = crate::parse::parse_progress_line(line) {
+                    cb(sec);
+                }
+            }
+            StdoutMode::Lines(cb) => cb(line),
+            StdoutMode::Capture => {}
+        }
+    }
 }
 
 /// Runs a tool with the given argument list. Never uses a shell.
@@ -145,6 +169,10 @@ pub fn run(
     cancel.check()?;
     let mut cmd = Command::new(program);
     cmd.args(args)
+        // yt-dlp is a Python program: make its output UTF-8 on every system
+        // (Polish titles on Windows). Harmless for ffmpeg.
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -160,14 +188,20 @@ pub fn run(
     let stderr_thread = std::thread::spawn(move || read_tail(stderr));
 
     let stdout = child.stdout.take().expect("stdout piped");
-    let (tx, rx) = mpsc::channel::<f64>();
-    let progress_mode = matches!(mode, StdoutMode::Progress(_));
+    let (tx, rx) = mpsc::channel::<String>();
+    let line_mode = !matches!(mode, StdoutMode::Capture);
     let stdout_thread = std::thread::spawn(move || -> Vec<u8> {
-        if progress_mode {
-            let reader = BufReader::new(stdout);
-            for line in reader.lines().map_while(|l| l.ok()) {
-                if let Some(sec) = crate::parse::parse_progress_line(&line) {
-                    let _ = tx.send(sec);
+        if line_mode {
+            let mut reader = BufReader::new(stdout);
+            let mut buf = Vec::new();
+            loop {
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {
+                        let line = String::from_utf8_lossy(&buf);
+                        let _ = tx.send(line.trim_end_matches(['\r', '\n']).to_string());
+                    }
                 }
             }
             Vec::new()
@@ -181,18 +215,17 @@ pub fn run(
 
     let status = loop {
         if cancel.is_cancelled() {
-            let _ = child.kill();
+            kill_tree(&mut child);
             let _ = child.wait();
-            let _ = stdout_thread.join();
-            let _ = stderr_thread.join();
+            // The reader threads end when the last process holding the pipes
+            // is gone; never block the caller on them (a stray grandchild
+            // must not make "Anuluj" hang).
+            drop(stdout_thread);
+            drop(stderr_thread);
             return Err(CoreError::cancelled());
         }
         match rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(sec) => {
-                if let StdoutMode::Progress(cb) = &mut mode {
-                    cb(sec);
-                }
-            }
+            Ok(line) => mode.dispatch(&line),
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 // stdout closed: the process is finishing.
@@ -211,6 +244,10 @@ pub fn run(
         }
     };
     let stdout = stdout_thread.join().unwrap_or_default();
+    // Lines printed just before the process exited.
+    while let Ok(line) = rx.try_recv() {
+        mode.dispatch(&line);
+    }
     let stderr = stderr_thread.join().unwrap_or_default();
     if cancel.is_cancelled() {
         return Err(CoreError::cancelled());
@@ -274,14 +311,48 @@ pub fn display_command(program: &Path, args: &[OsString]) -> String {
 }
 
 #[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[cfg(windows)]
 fn hide_console(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     cmd.creation_flags(CREATE_NO_WINDOW);
 }
 
+/// Unix: every tool runs in its own process group, so cancelling can kill the
+/// whole tree (yt-dlp's standalone builds start a child process).
 #[cfg(not(windows))]
-fn hide_console(_cmd: &mut Command) {}
+fn hide_console(cmd: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    cmd.process_group(0);
+}
+
+/// Kills the child and everything it started.
+fn kill_tree(child: &mut std::process::Child) {
+    let pid = child.id().to_string();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        // the group id equals the child's pid (process_group(0))
+        let _ = Command::new("kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
+}
 
 /// Small helper to build argument lists.
 #[derive(Debug, Default, Clone)]

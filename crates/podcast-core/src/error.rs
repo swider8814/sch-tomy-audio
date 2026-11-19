@@ -30,6 +30,14 @@ pub enum ErrorKind {
     Pattern,
     /// Settings could not be read or written.
     Settings,
+    /// The pasted text is not a YouTube video link.
+    YouTubeLink,
+    /// yt-dlp failed (network, YouTube changes...).
+    YouTube,
+    /// YouTube asked for a sign-in / bot check.
+    YouTubeBlocked,
+    /// The video is private, removed or otherwise unavailable.
+    YouTubeUnavailable,
 }
 
 #[derive(Debug, Clone)]
@@ -80,6 +88,10 @@ impl CoreError {
             ErrorKind::Processing => "Obróbka nagrania nie powiodła się. Szczegóły znajdziesz w logu.".into(),
             ErrorKind::Pattern => "Nie udało się zapisać albo odczytać wzorca zajawki.".into(),
             ErrorKind::Settings => "Nie udało się zapisać ustawień.".into(),
+            ErrorKind::YouTubeLink => "To nie wygląda na link do filmu na YouTube. Skopiuj adres filmu (np. https://www.youtube.com/watch?v=...) i wklej go jeszcze raz.".into(),
+            ErrorKind::YouTube => "Nie udało się pobrać nagrania z YouTube. Sprawdź połączenie z internetem i spróbuj ponownie. Jeśli błąd się powtarza, YouTube mógł zmienić sposób działania i potrzebna będzie nowa wersja aplikacji.".into(),
+            ErrorKind::YouTubeBlocked => "YouTube zablokował pobieranie (prosi o potwierdzenie, że nie jesteś robotem). Spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.".into(),
+            ErrorKind::YouTubeUnavailable => "Ten film jest niedostępny (prywatny, usunięty albo tylko dla członków kanału). Sprawdź link.".into(),
         }
     }
 }
