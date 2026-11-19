@@ -150,6 +150,7 @@ pub fn parse_loudnorm(stderr: &str) -> Option<(LoudnormMeasurement, LoudnormMode
 
 /// Summary printed by the `ebur128` filter at the end of the stream.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Ebur128Summary {
     pub integrated: f64,
     pub lra: f64,

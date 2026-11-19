@@ -55,6 +55,7 @@ pub enum Stage {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProcessResult {
     pub output: PathBuf,
     pub loudness: Ebur128Summary,

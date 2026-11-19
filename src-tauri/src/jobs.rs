@@ -210,6 +210,66 @@ mod tests {
         assert_eq!(j.view.start_source, StartSource::None);
     }
 
+    /// The UI (ui/js/app.js, editor.js) reads these exact camelCase keys.
+    #[test]
+    fn json_shape_used_by_the_ui() {
+        use podcast_core::parse::Ebur128Summary;
+        let mut j = job();
+        j.view.teaser = Some(teaser(0.9));
+        j.view.vad = Some(SpeechProposal {
+            start: 1.0,
+            ratio: 0.7,
+        });
+        j.view.result = Some(ProcessResult {
+            output: PathBuf::from("/o/a-podcast.mp3"),
+            loudness: Ebur128Summary {
+                integrated: -16.0,
+                lra: 5.0,
+                true_peak: Some(-1.2),
+            },
+            duration: 60.0,
+            trailing_silence_cut: Some(2.0),
+            leading_silence_cut: None,
+            loudnorm_mode: "linear".into(),
+            warnings: vec![],
+        });
+        j.apply_suggestions(0.6);
+        let v = serde_json::to_value(&j.view).unwrap();
+        for key in [
+            "id",
+            "path",
+            "fileName",
+            "title",
+            "duration",
+            "status",
+            "stage",
+            "progress",
+            "start",
+            "startSource",
+            "end",
+            "analysisNote",
+            "error",
+        ] {
+            assert!(v.get(key).is_some(), "missing {key}");
+        }
+        assert_eq!(v["startSource"], "pattern");
+        assert_eq!(v["status"], "analyzing");
+        assert_eq!(v["teaser"]["name"], "Seria");
+        assert!(
+            v["teaser"]["confidence"].is_number()
+                && v["teaser"]["end"].is_number()
+                && v["teaser"]["offset"].is_number()
+        );
+        assert!(v["vad"]["start"].is_number());
+        let r = &v["result"];
+        assert_eq!(r["output"], "/o/a-podcast.mp3");
+        assert_eq!(r["trailingSilenceCut"], 2.0);
+        assert_eq!(r["loudness"]["truePeak"], -1.2);
+        assert_eq!(r["loudness"]["integrated"], -16.0);
+        assert!(r["warnings"].is_array());
+        assert!(r["duration"].is_number());
+    }
+
     #[test]
     fn manual_marker_is_never_replaced() {
         let mut j = job();

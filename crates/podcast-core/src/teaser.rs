@@ -171,6 +171,7 @@ pub fn decode_search_window(
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TeaserMatch {
     pub pattern_id: String,
     pub name: String,
