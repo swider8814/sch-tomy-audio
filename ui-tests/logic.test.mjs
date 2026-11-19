@@ -107,3 +107,10 @@ test("release info accepts only this project's release page", () => {
   assert.equal(releaseInfo({ tag_name: "latest" }), null);
   assert.equal(releaseInfo(null), null);
 });
+
+import { THEMES, themeOf } from "../ui/js/logic.js";
+
+test("theme values", () => {
+  for (const t of THEMES) assert.equal(themeOf(t), t);
+  for (const t of [undefined, null, "", "Dark", "neon"]) assert.equal(themeOf(t), "system");
+});

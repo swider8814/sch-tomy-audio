@@ -173,6 +173,13 @@ docs/threat-model.md
   the job list carry over. Because the product name changed, Windows/macOS
   install it next to the old app; the guide tells users to remove the old
   one. The ID3 album "SCh Tomy podcast" is the podcast's name and stays.
+* **Dark mode (v0.1.4):** setting `theme` = system (default) / light /
+  dark, in Podstawowe and as a three-button switch in the top bar (both
+  save the setting). Colours are CSS variables on `:root`; dark values apply
+  under `prefers-color-scheme: dark` unless `data-theme="light"`, and always
+  with `data-theme="dark"`. The native window theme follows via
+  `setTheme` (capability `core:window:allow-set-theme`), so the title bar
+  matches. The waveform canvas is dark in both themes.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

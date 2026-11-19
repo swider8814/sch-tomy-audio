@@ -3,6 +3,7 @@
 import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog, tauriOpener } from "./util.js";
 import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./app.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
+import { applyTheme, themeOf } from "./theme.js";
 import { formatTime } from "./format.js";
 
 const dlg = () => $("#settings");
@@ -30,6 +31,7 @@ const DEFAULTS = {
   artist: "Społeczność Chrześcijańska Tomy",
   album: "SCh Tomy podcast",
   check_updates: true,
+  theme: "system",
 };
 
 const field = (name) => form().elements.namedItem(name);
@@ -85,6 +87,7 @@ function fill() {
   field("album").value = s.album;
   field("concurrency").value = s.concurrency;
   field("check_updates").checked = s.check_updates !== false;
+  form().querySelector(`input[name=theme][value=${themeOf(s.theme)}]`).checked = true;
   $("#about-version").textContent = app.version;
 }
 
@@ -140,6 +143,7 @@ function collect() {
   s.album = field("album").value.trim() || DEFAULTS.album;
   s.concurrency = Math.round(num("concurrency", { min: 1, max: 4, label: "Ile plików naraz" }));
   s.check_updates = field("check_updates").checked;
+  s.theme = themeOf(form().querySelector("input[name=theme]:checked")?.value);
   return s;
 }
 
@@ -236,6 +240,9 @@ function setup() {
     ev.preventDefault();
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  // The theme is previewed at once; closing without saving goes back to the saved one.
+  for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));
+  dlg().addEventListener("close", () => applyTheme(app.settings?.theme));
   $("#author-mail").addEventListener("click", () =>
     tauriOpener()
       .openUrl(AUTHOR_MAIL)

@@ -106,3 +106,13 @@ export function releaseInfo(json) {
   const safe = url.startsWith(`${RELEASES_PAGE}/`) && /^[A-Za-z0-9/._-]+$/.test(url.slice("https://".length));
   return { version: version.join("."), url: safe ? url : RELEASES_PAGE };
 }
+
+// --------------------------------------------------------------- theme
+
+/** Allowed colour themes (same list as `settings::THEMES` in Rust). */
+export const THEMES = ["system", "light", "dark"];
+
+/** Normalises a stored value to one of THEMES ("system" for anything else). */
+export function themeOf(value) {
+  return THEMES.includes(value) ? value : "system";
+}
