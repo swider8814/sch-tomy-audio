@@ -62,6 +62,8 @@ pub struct Settings {
     pub check_updates: bool,
     /// Colour theme: "system" (follow the OS), "light" or "dark".
     pub theme: String,
+    /// System notification when all queued files are finished.
+    pub notify_done: bool,
 }
 
 impl Default for Settings {
@@ -88,6 +90,7 @@ impl Default for Settings {
             album: crate::tags::DEFAULT_ALBUM.into(),
             check_updates: true,
             theme: "system".into(),
+            notify_done: true,
         }
     }
 }
@@ -217,6 +220,7 @@ mod tests {
         assert!(!s.silence.trim_leading);
         assert!(s.check_updates);
         assert_eq!(s.theme, "system");
+        assert!(s.notify_done);
     }
 
     #[test]

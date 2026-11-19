@@ -14,6 +14,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
@@ -35,6 +36,8 @@ fn main() {
             commands::use_suggestion,
             commands::get_preview,
             commands::cancel_previews,
+            commands::get_result_preview,
+            commands::remove_speaker,
             commands::get_log,
             commands::save_pattern,
             commands::delete_pattern,

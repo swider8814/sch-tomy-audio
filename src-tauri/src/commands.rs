@@ -8,7 +8,7 @@ use podcast_core::CancelToken;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 type St<'a> = State<'a, Arc<AppState>>;
 
@@ -38,6 +38,8 @@ pub struct StateView {
     default_youtube_dir: String,
     /// Version of this build, compared with the latest GitHub release.
     version: &'static str,
+    /// Remembered speaker names, most recent first.
+    speakers: Vec<String>,
 }
 
 fn not_found() -> String {
@@ -93,6 +95,7 @@ pub fn get_state(state: St<'_>) -> StateView {
         preview_tail: PREVIEW_TAIL_S,
         default_youtube_dir: state.default_youtube_dir.display().to_string(),
         version: env!("CARGO_PKG_VERSION"),
+        speakers: g.speakers.clone(),
     }
 }
 
@@ -455,6 +458,85 @@ pub fn get_preview(
     })
 }
 
+/// Seconds of a finished file played by "Posłuchaj początku" (intro, pause
+/// and the start of the sermon) and "Posłuchaj końca" (end and outro).
+const RESULT_HEAD_S: f64 = 90.0;
+const RESULT_TAIL_S: f64 = 60.0;
+
+/// WAV bytes of the beginning or the end of a finished episode, for a quick
+/// listen in the app. Only the job's own output file is read.
+#[tauri::command(async)]
+pub fn get_result_preview(
+    state: St<'_>,
+    id: u64,
+    part: String,
+) -> Result<tauri::ipc::Response, String> {
+    let (path, duration) = {
+        let g = state.lock();
+        let j = g
+            .jobs
+            .iter()
+            .find(|j| j.view.id == id)
+            .ok_or_else(not_found)?;
+        let r = j
+            .view
+            .result
+            .as_ref()
+            .filter(|_| j.view.status == Status::Done)
+            .ok_or("Ten plik nie jest jeszcze gotowy.")?;
+        (r.output.clone(), r.duration)
+    };
+    if !path.is_file() {
+        return Err(
+            "Nie znaleziono gotowego pliku. Mógł zostać przeniesiony albo usunięty.".into(),
+        );
+    }
+    let tools = state.tools.as_ref().map_err(|e| e.user_message())?;
+    let (start, len) = result_preview_range(&part, duration);
+    let token = state.preview_token();
+    let res = podcast_core::pcm::decode_wav(tools, &path, start, len, PREVIEW_RATE, &token);
+    state.finish_preview(&token);
+    res.map(tauri::ipc::Response::new).map_err(|e| {
+        if e.is_cancelled() {
+            "Anulowano.".to_string()
+        } else {
+            format!(
+                "{} ({})",
+                e.user_message(),
+                e.details.lines().next().unwrap_or("")
+            )
+        }
+    })
+}
+
+/// Start and length of the part played by `get_result_preview`.
+pub fn result_preview_range(part: &str, duration: f64) -> (f64, f64) {
+    let duration = if duration.is_finite() {
+        duration.max(0.0)
+    } else {
+        0.0
+    };
+    if part == "tail" {
+        let start = (duration - RESULT_TAIL_S).max(0.0);
+        (start, (duration - start).max(0.1))
+    } else {
+        (0.0, RESULT_HEAD_S.min(duration).max(0.1))
+    }
+}
+
+/// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
+#[tauri::command]
+pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {
+    let list = {
+        let mut g = state.lock();
+        podcast_core::speakers::forget(&mut g.speakers, &name);
+        g.speakers.clone()
+    };
+    let _ = podcast_core::speakers::save(&state.speakers_path, &list);
+    let _ = app.emit("speakers", &list);
+    list
+}
+
 /// Stops preview decodes (called when the editor closes).
 #[tauri::command]
 pub fn cancel_previews(state: St<'_>) {
@@ -632,6 +714,17 @@ pub fn cancel_job(app: AppHandle, state: St<'_>, id: u64) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn result_preview_ranges() {
+        assert_eq!(result_preview_range("head", 3000.0), (0.0, 90.0));
+        assert_eq!(result_preview_range("tail", 3000.0), (2940.0, 60.0));
+        // short files: the whole file, never a negative or empty range
+        assert_eq!(result_preview_range("head", 30.0), (0.0, 30.0));
+        assert_eq!(result_preview_range("tail", 30.0), (0.0, 30.0));
+        assert_eq!(result_preview_range("head", f64::NAN), (0.0, 0.1));
+        assert_eq!(result_preview_range("tail", -5.0), (0.0, 0.1));
+    }
 
     #[test]
     fn folder_expansion_skips_outputs_and_other_files() {

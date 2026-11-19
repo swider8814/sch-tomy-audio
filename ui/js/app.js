@@ -6,7 +6,19 @@ import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, effectiveTheme } from "./theme.js";
-import { FILTERS, filterTest, isBusy as busy, missingSermon, startIsProposal } from "./logic.js";
+import {
+  FILTERS,
+  etaSeconds,
+  filterTest,
+  formatEta,
+  isBusy as busy,
+  missingSermon,
+  runFraction,
+  similarSpeaker,
+  splitSuffix,
+  startIsProposal,
+} from "./logic.js";
+import { playResult, playingKey, stopResult } from "./player.js";
 
 export const MEDIA_EXTENSIONS = ["mp3", "mp4", "m4a", "webm", "mov", "wav", "aac", "ogg", "opus", "flac", "mkv", "wma", "m4v"];
 
@@ -22,6 +34,8 @@ export const app = {
   defaultYoutubeDir: "",
   filter: "all", // key of the active list filter (logic.js FILTERS)
   version: "",
+  speakers: [], // remembered speaker names, most recent first
+  run: null, // { started: ms, ids: Set } while files are queued or processing
   update: null, // { version, url } when a newer release was found and not dismissed
 };
 
@@ -39,6 +53,7 @@ async function refresh() {
   app.previewTail = s.previewTail;
   app.defaultYoutubeDir = s.defaultYoutubeDir;
   app.version = s.version;
+  app.speakers = s.speakers ?? [];
   applyTheme(s.settings?.theme);
   setJobs(s.jobs);
   renderBanners();
@@ -137,6 +152,7 @@ function renderList() {
     if (!seen.has(id)) {
       r.tr.remove();
       rows.delete(id);
+      if (playingKey()?.startsWith(`${id}:`)) stopResult();
     }
   }
   const empty = app.order.length === 0;
@@ -163,6 +179,12 @@ function createRow(id) {
     "aria-label": "Kaznodzieja i data",
   });
   const info = h("span", { class: "info-dot", tabindex: 0, role: "note" }, "i");
+  suffix.setAttribute("list", "speaker-list");
+  // Suggestions "Name - <this file's date>" for every remembered speaker.
+  const fillSuggestions = () => fillSpeakerList(splitSuffix(suffix.value).date);
+  suffix.addEventListener("focus", fillSuggestions);
+  suffix.addEventListener("input", fillSuggestions);
+  const speakerHint = h("div", { class: "speaker-hint warn-text", hidden: true });
   const save = async () => {
     try {
       await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
@@ -193,13 +215,21 @@ function createRow(id) {
     sermon,
     suffix,
     info,
+    speakerHint,
     start: h("td", { class: "c-start" }),
     status: h("td", { class: "c-status" }),
     result: h("td", { class: "c-result" }),
     actions: h("td", { class: "c-actions" }),
   };
   r.tr.append(
-    h("td", { class: "c-title" }, fileName, sermon, h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "-"), suffix, info)),
+    h(
+      "td",
+      { class: "c-title" },
+      fileName,
+      sermon,
+      h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "-"), suffix, info),
+      speakerHint,
+    ),
     r.start,
     r.status,
     r.result,
@@ -229,6 +259,7 @@ function updateRow(job) {
   r.info.title = tip.join("\n");
   r.info.setAttribute("aria-label", tip.join(". "));
   r.tr.hidden = !filterTest(app.filter)(job);
+  renderSpeakerHint(r, job);
 
   // start marker
   r.start.replaceChildren();
@@ -320,6 +351,13 @@ function updateRow(job) {
         h(
           "div",
           {},
+          resultPlayButton(job.id, "head", "▶ Początek", "Posłuchaj początku gotowego odcinka: intro, przerwa i początek kazania"),
+          " ",
+          resultPlayButton(job.id, "tail", "▶ Koniec", "Posłuchaj końca gotowego odcinka: koniec kazania, przerwa i outro"),
+        ),
+        h(
+          "div",
+          {},
           h("button", { type: "button", class: "small", onclick: () => reveal(res.output) }, "Pokaż w folderze"),
           " ",
           h("button", { type: "button", class: "small", onclick: () => showLog(job.id) }, "Log"),
@@ -363,16 +401,117 @@ function renderToolbar() {
   $("#btn-cancel").disabled = processing + queued === 0;
   $("#btn-clear").disabled = done === 0;
 
-  const inRun = processing + queued + done;
   const overall = $("#overall");
-  if (processing + queued > 0) {
-    const sum = done + jobs.filter((j) => j.status === "processing").reduce((a, j) => a + (j.progress ?? 0), 0);
-    const pct = Math.round((sum / inRun) * 100);
+  const active = processing + queued;
+  if (active > 0) {
+    // A run lasts from the first queued file until nothing is queued or processing.
+    if (!app.run) app.run = { started: Date.now(), ids: new Set() };
+    for (const j of jobs) if (j.status === "processing" || j.status === "queued") app.run.ids.add(j.id);
+    const runJobs = [...app.run.ids].map((id) => app.jobs.get(id)).filter(Boolean);
+    const fraction = runFraction(runJobs);
+    const finished = runJobs.filter((j) => j.status === "done").length;
+    const pct = Math.round(fraction * 100);
+    const eta = formatEta(etaSeconds((Date.now() - app.run.started) / 1000, fraction));
     overall.hidden = false;
     $("#overall-fill").style.width = `${pct}%`;
-    $("#overall-text").textContent = `Gotowe ${done} z ${inRun} (${pct}%)`;
+    $("#overall-text").textContent = `Gotowe ${finished} z ${runJobs.length} (${pct}%)${eta ? `. Zostało ${eta}.` : ""}`;
   } else {
     overall.hidden = true;
+    if (app.run) finishRun();
+  }
+}
+
+/** Called when the last file of a run is finished: message and system notification. */
+function finishRun() {
+  const runJobs = [...app.run.ids].map((id) => app.jobs.get(id)).filter(Boolean);
+  app.run = null;
+  const done = runJobs.filter((j) => j.status === "done").length;
+  const failed = runJobs.filter((j) => j.status === "error").length;
+  if (!done && !failed) return; // everything was cancelled
+  const body = failed
+    ? `Gotowe: ${done} ${plikow(done)}. Z błędem: ${failed} ${plikow(failed)}.`
+    : `Gotowe: ${done} ${plikow(done)}. Pliki MP3 czekają w folderze wyników.`;
+  toast(body, 6000);
+  if (app.settings?.notify_done && !document.hasFocus()) notify("Obróbka zakończona", body);
+}
+
+async function notify(title, body) {
+  try {
+    const n = window.__TAURI__.notification;
+    if (await n.isPermissionGranted()) n.sendNotification({ title, body });
+  } catch {
+    /* notifications unavailable: the in-app message is enough */
+  }
+}
+
+/** Asks for permission to show notifications (once, when processing starts). */
+async function askNotifyPermission() {
+  try {
+    const n = window.__TAURI__.notification;
+    if (app.settings?.notify_done && !(await n.isPermissionGranted())) await n.requestPermission();
+  } catch {
+    /* ignore */
+  }
+}
+
+// --------------------------------------------------------------- speakers
+
+/** Fills the shared <datalist> with "Name - date" for every remembered speaker. */
+function fillSpeakerList(date) {
+  const list = $("#speaker-list");
+  list.replaceChildren(...app.speakers.map((n) => h("option", { value: date ? `${n} - ${date}` : n })));
+}
+
+/** Warns under the speaker field when the name looks like a misspelling of a known one. */
+function renderSpeakerHint(r, job) {
+  const editable = job.status === "waiting" || job.status === "cancelled" || job.status === "error";
+  const { name, date } = splitSuffix(job.titleSuffix);
+  const match = editable ? similarSpeaker(name, app.speakers) : null;
+  r.speakerHint.hidden = !match;
+  if (!match) return;
+  const fixed = date ? `${match} - ${date}` : match;
+  r.speakerHint.replaceChildren(
+    `Czy chodziło o: ${match}? `,
+    h(
+      "button",
+      {
+        type: "button",
+        class: "small",
+        onclick: async () => {
+          try {
+            await invoke("set_title", { id: job.id, sermon: job.sermonTitle ?? "", suffix: fixed });
+          } catch (e) {
+            toast(errorText(e));
+          }
+        },
+      },
+      "Popraw",
+    ),
+  );
+}
+
+// ---------------------------------------------------------- result player
+
+function resultPlayButton(id, part, label, title) {
+  const key = `${id}:${part}`;
+  const on = playingKey() === key;
+  return h(
+    "button",
+    {
+      type: "button",
+      class: on ? "small primary" : "small",
+      title,
+      "aria-pressed": String(on),
+      onclick: () => playResult(id, part, rerenderDone),
+    },
+    on ? "■ Zatrzymaj" : label,
+  );
+}
+
+function rerenderDone() {
+  for (const id of app.order) {
+    const j = app.jobs.get(id);
+    if (j?.status === "done") updateRow(j);
   }
 }
 
@@ -598,7 +737,10 @@ function setupButtons() {
       if (!ok) return;
     }
     const n = await invoke("start_all");
-    if (n) toast(`Rozpoczęto obróbkę: ${n} ${plikow(n)}.`);
+    if (n) {
+      toast(`Rozpoczęto obróbkę: ${n} ${plikow(n)}.`);
+      askNotifyPermission();
+    }
   });
   $("#btn-cancel").addEventListener("click", () => invoke("cancel_all"));
   $("#btn-clear").addEventListener("click", () => invoke("clear_finished"));
@@ -617,6 +759,10 @@ async function main() {
   setupDragDrop();
   setupCloseGuard();
   await listen("jobs", (e) => setJobs(e.payload));
+  await listen("speakers", (e) => {
+    app.speakers = e.payload ?? [];
+    for (const id of app.order) updateRow(app.jobs.get(id));
+  });
   await listen("job", (e) => {
     const job = e.payload;
     if (!app.jobs.has(job.id)) return;

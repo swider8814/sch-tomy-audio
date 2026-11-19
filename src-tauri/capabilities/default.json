@@ -9,6 +9,7 @@
     "core:default",
     "core:window:allow-destroy",
     "core:window:allow-set-theme",
+    "notification:default",
     "dialog:allow-open",
     "dialog:allow-ask",
     "dialog:allow-message",

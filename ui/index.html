@@ -19,6 +19,7 @@
     </header>
 
     <div id="banners" aria-live="polite"></div>
+    <datalist id="speaker-list"></datalist>
 
     <div id="drop-overlay" hidden aria-hidden="true">
       <div class="drop-overlay-box">
@@ -267,6 +268,11 @@
           </fieldset>
 
           <fieldset>
+            <legend>Powiadomienia</legend>
+            <label class="inline"><input name="notify_done" type="checkbox" /> Pokaż powiadomienie, gdy obróbka wszystkich plików się skończy (gdy okno aplikacji nie jest na wierzchu)</label>
+          </fieldset>
+
+          <fieldset>
             <legend>Wygląd</legend>
             <label class="inline"><input type="radio" name="theme" value="system" /> Jak w systemie (jasny albo ciemny, zależnie od ustawień komputera)</label>
             <label class="inline"><input type="radio" name="theme" value="light" /> Jasny</label>
@@ -371,6 +377,12 @@
             </div>
             <p class="hint">Poniżej progu dopasowanie jest tylko propozycją do sprawdzenia. Zajawki i początku mowy aplikacja szuka tylko na początku nagrania.</p>
             <ul id="pattern-list" class="pattern-list"></ul>
+          </fieldset>
+
+          <fieldset>
+            <legend>Zapamiętani kaznodzieje</legend>
+            <p class="hint">Aplikacja zapamiętuje kaznodziejów z gotowych odcinków i podpowiada ich w polu „Kaznodzieja i data”. Jeśli na liście jest literówka, usuń ją.</p>
+            <ul id="speaker-settings-list" class="pattern-list"></ul>
           </fieldset>
 
           <fieldset>

@@ -181,6 +181,23 @@ docs/threat-model.md
   with `data-theme="dark"`. The native window theme follows via
   `setTheme` (capability `core:window:allow-set-theme`), so the title bar
   matches. The waveform canvas is dark in both themes.
+* **ETA and notification (v0.1.4):** a "run" lasts from the first queued
+  file until nothing is queued or processing; the remaining time is
+  extrapolated from its elapsed time and finished share (`logic.js`
+  `runFraction`, `etaSeconds`), shown after 15 s. At the end a system
+  notification (tauri-plugin-notification, setting `notify_done`) is sent
+  only when the window is not focused; permission is asked when processing
+  starts.
+* **Speaker suggestions (v0.1.4):** the speaker of every finished episode
+  (`speakers::speaker_of` on the "speaker - date" field) is remembered in
+  `speakers.json` in the data folder (max 300, most recent first). The
+  field offers them via a `<datalist>` ("Name - <this file's date>"), and a
+  name within one or two typos of a known one (ignoring case and Polish
+  letters) shows "Czy chodziło o...?" with a fix button. Names can be
+  removed in the settings.
+* **Listening to the result (v0.1.4):** `get_result_preview` decodes the
+  first 90 s or last 60 s of the job's own output file to WAV (same path as
+  the editor previews) and the UI plays it with WebAudio.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

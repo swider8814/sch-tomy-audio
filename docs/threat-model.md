@@ -103,6 +103,10 @@ something, including the original.
   `cancel_stops_and_leaves_no_files`).
 * Pattern files use generated ids validated as `[A-Za-z0-9]` before being
   joined to a path (`teaser::valid_id`).
+* `get_result_preview` reads only the output file recorded for a finished
+  job (never a path from the frontend) and decodes it in ffmpeg like any
+  other input. Remembered speaker names (`speakers.json`) are plain text,
+  length-limited and shown with `textContent`.
 
 ### T5. Tampered settings or pattern files
 
@@ -129,7 +133,8 @@ calls privileged commands.
   `freezePrototype`, no remote content is loaded.
 * Capabilities are minimal (`core:default`, window destroy, dialog
   open/ask/message, opener reveal-in-folder and open-url limited to this
-  project's releases page and a `mailto:` link to the author); there is no generic shell/fs plugin. Commands validate
+  project's releases page and a `mailto:` link to the author, window
+  set-theme, notifications); there is no generic shell/fs plugin. Commands validate
   their inputs (markers within duration, titles length-limited, pattern
   lengths bounded) and only operate on files the user added.
 

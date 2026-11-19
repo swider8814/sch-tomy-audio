@@ -12,6 +12,7 @@ pub mod pcm;
 pub mod pipeline;
 pub mod probe;
 pub mod settings;
+pub mod speakers;
 pub mod tags;
 pub mod teaser;
 pub mod vad;

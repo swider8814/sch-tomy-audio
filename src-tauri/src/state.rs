@@ -25,6 +25,8 @@ pub struct Inner {
     pub next_id: u64,
     pub patterns: Patterns,
     pub shutting_down: bool,
+    /// Remembered speaker names, most recent first (`podcast_core::speakers`).
+    pub speakers: Vec<String>,
 }
 
 pub struct AppState {
@@ -43,6 +45,7 @@ pub struct AppState {
     workers: Mutex<Vec<JoinHandle<()>>>,
     /// The job list of the previous session is restored from here.
     queue_path: PathBuf,
+    pub speakers_path: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -55,6 +58,8 @@ impl AppState {
         let store = PatternStore::new(data_dir.join("patterns"));
         let patterns = Arc::new(store.load_all());
         let queue_path = data_dir.join("queue.json");
+        let speakers_path = data_dir.join("speakers.json");
+        let speakers = podcast_core::speakers::load(&speakers_path);
         let jobs: Vec<Job> = std::fs::read(&queue_path)
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<JobView>>(&b).ok())
@@ -76,6 +81,7 @@ impl AppState {
                 next_id,
                 patterns,
                 shutting_down: false,
+                speakers,
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
@@ -88,6 +94,7 @@ impl AppState {
             previews: Mutex::new(Vec::new()),
             workers: Mutex::new(Vec::new()),
             queue_path,
+            speakers_path,
         }
     }
 
@@ -452,6 +459,7 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 )
             }
         };
+        let mut done_speaker = None;
         let mut g = state.lock();
         if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
             j.log = log;
@@ -461,6 +469,7 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                     j.view.status = Status::Done;
                     j.view.progress = 1.0;
                     j.view.result = Some(r);
+                    done_speaker = podcast_core::speakers::speaker_of(&j.view.title_suffix);
                 }
                 Err(e) if e.is_cancelled() => {
                     j.view.status = Status::Cancelled;
@@ -474,7 +483,16 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
             }
             emit_job(&app, &j.view);
         }
-        drop(g);
+        if let Some(name) = done_speaker {
+            podcast_core::speakers::remember(&mut g.speakers, &name);
+            let list = g.speakers.clone();
+            drop(g);
+            // A failed save only means the name is not remembered next time.
+            let _ = podcast_core::speakers::save(&state.speakers_path, &list);
+            let _ = app.emit("speakers", &list);
+        } else {
+            drop(g);
+        }
         state.wake.notify_all();
     }
 }
