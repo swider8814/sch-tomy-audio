@@ -41,6 +41,10 @@ pub struct JobInput {
     pub cut: Cut,
     pub title: String,
     pub year: Option<i32>,
+    /// Output file name (see `naming::episode_file_name`). Ignored unless it
+    /// passes `naming::is_safe_output_name`; `None` = named after the
+    /// original file.
+    pub file_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -349,15 +353,12 @@ pub fn process(
             format!("output folder does not exist: {}", out_dir.display()),
         ));
     }
-    let final_path =
-        naming::reserve_output_path(&out_dir, &naming::output_file_name(&job.recording)).map_err(
-            |e| {
-                CoreError::new(
-                    ErrorKind::OutputNotWritable,
-                    format!("{}: {e}", out_dir.display()),
-                )
-            },
-        )?;
+    let final_path = naming::reserve_output_path(&out_dir, &output_name(job)).map_err(|e| {
+        CoreError::new(
+            ErrorKind::OutputNotWritable,
+            format!("{}: {e}", out_dir.display()),
+        )
+    })?;
     let file_name = final_path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -502,6 +503,16 @@ fn encode(
     };
     log.push_str(&format!("loudnorm mode: {mode}\n"));
     Ok(mode.to_string())
+}
+
+/// Output file name of a job: the requested one when it is safe, else the
+/// slug of the original file name.
+pub fn output_name(job: &JobInput) -> String {
+    job.file_name
+        .as_deref()
+        .filter(|n| naming::is_safe_output_name(n))
+        .map(str::to_string)
+        .unwrap_or_else(|| naming::output_file_name(&job.recording))
 }
 
 fn check_measurement(m: &LoudnormMeasurement) -> Result<()> {
@@ -663,6 +674,31 @@ mod tests {
         assert_eq!(p.rec_start, 12.0);
         assert_eq!(p.leading_silence_cut, Some(2.0));
         assert_eq!(p.kept_length, 38.0);
+    }
+
+    #[test]
+    fn output_name_uses_only_safe_requested_names() {
+        let mut job = JobInput {
+            recording: PathBuf::from("/k/TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4"),
+            cut: Cut::default(),
+            title: String::new(),
+            year: None,
+            file_name: Some("2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3".into()),
+        };
+        assert_eq!(
+            output_name(&job),
+            "2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3"
+        );
+        job.file_name = Some("../../evil.mp3".into());
+        assert_eq!(
+            output_name(&job),
+            "tomy-piotrkow-2026-10-11-adam-szumorek-podcast.mp3"
+        );
+        job.file_name = None;
+        assert_eq!(
+            output_name(&job),
+            "tomy-piotrkow-2026-10-11-adam-szumorek-podcast.mp3"
+        );
     }
 
     #[test]

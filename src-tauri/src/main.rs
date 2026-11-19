@@ -16,7 +16,8 @@ fn main() {
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
-            let state = Arc::new(AppState::new(&config_dir, &data_dir));
+            let download_dir = app.path().download_dir().ok();
+            let state = Arc::new(AppState::new(&config_dir, &data_dir, download_dir));
             state::start_workers(app.handle().clone(), state.clone());
             app.manage(state);
             Ok(())
@@ -24,6 +25,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::get_state,
             commands::add_files,
+            commands::add_youtube,
+            commands::read_link_file,
             commands::remove_job,
             commands::clear_finished,
             commands::set_title,

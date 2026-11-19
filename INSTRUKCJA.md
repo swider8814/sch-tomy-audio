@@ -8,9 +8,9 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 4. wyrównuje głośność do poziomu podcastów (-16 LUFS),
 5. zapisuje gotowy plik MP3 z tytułem i okładką.
 
-Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę oryginału z dopiskiem „-podcast”, na przykład `30-11-2025-kazanie-podcast.mp3`.
+Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i kaznodziei z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
-Aplikacja działa bez internetu i niczego nie wysyła.
+Aplikacja działa bez internetu i niczego nie wysyła. Wyjątek: pobieranie nagrania z YouTube, gdy sam wkleisz link.
 
 ## 1. Pobranie
 
@@ -55,6 +55,7 @@ Kliknij **Ustawienia** w prawym górnym rogu.
 * **Intro** i **Outro**: kliknij **Wybierz plik** i wskaż nagranie intro oraz outro. Bez nich aplikacja też działa (przytnie i wyrówna nagrania), ale na górze okna zobaczysz żółte przypomnienie.
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
 * **Gdzie zapisać wyniki**: „Obok oryginału” albo wybrany folder.
+* **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
 * Pozostałe wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 
 Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
@@ -67,12 +68,27 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
    * **propozycja, sprawdź** (żółte): automatyczna podpowiedź, którą warto sprawdzić,
    * **ręczny** (niebieskie): ustawiony przez Ciebie,
    * **brak**: początek nie zostanie przycięty.
-3. **Popraw tytuły.** Tytuł odcinka bierze się z nazwy pliku. Kliknij w pole tytułu i popraw go, jeśli trzeba.
+3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
+   * **Tytuł kazania**, np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto.
+   * **Kaznodzieja i data**, np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić.
+
+   Pod polami widzisz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
 4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Edytuj cięcie** (patrz punkt 6).
 5. Kliknij **Przetwórz wszystkie**. Postęp widać przy każdym pliku i nad listą. Możesz w każdej chwili kliknąć **Anuluj obróbkę**.
 6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
 
 Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,5 LU. Plik jest zapisany, ale warto go odsłuchać.
+
+## 5a. Nagrania z YouTube
+
+1. Kliknij **Pobierz z YouTube** (obok „Wybierz pliki”).
+2. Wklej adres filmu (np. `https://www.youtube.com/watch?v=...` albo `https://youtu.be/...`). Możesz wkleić kilka adresów naraz, każdy w osobnej linii.
+3. Kliknij **Pobierz**. Aplikacja pobierze sam dźwięk (bez obrazu), film po filmie, do folderu z Ustawień (domyślnie **Pobrane/SCh Tomy YouTube**) i doda nagrania do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
+4. Dalej wszystko działa tak samo jak dla plików: sprawdź start, kliknij **Przetwórz wszystkie**.
+
+**Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.
+
+To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
 
 ## 6. Ustawianie początku i końca (Edytuj cięcie)
 

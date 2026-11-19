@@ -182,19 +182,45 @@ releases.
 * The existing Claude workflows (`claude.yml`, `claude-code-review.yml`) are
   managed separately and not changed by this project.
 
-### T11. Stage 2: YouTube downloads (planned)
+### T11. YouTube downloads (yt-dlp + Deno)
 
-*Threat:* malicious URLs, argument injection into yt-dlp, downloaded files
-landing outside the intended folder, yt-dlp updating itself or running
-extractors from the network.
+*Threat:* malicious or unexpected links, argument injection into yt-dlp,
+downloaded files landing outside the intended folder, yt-dlp reading
+configuration files or running commands, a compromised yt-dlp/Deno binary,
+hanging downloads.
 
-*Planned mitigations:* accept only `https://www.youtube.com/...` and
-`https://youtu.be/...` URLs after parsing; pass the URL after `--` in an
-argument list; use a fixed output template in an app-controlled temporary
-folder with `--restrict-filenames`, `--no-exec`, no config files
-(`--ignore-config`), no self-update; pin the yt-dlp binary by version and
-SHA-256 like ffmpeg; the downloaded file then goes through the same pipeline
-as T1 to T4. Network access happens only when the user pastes a link.
+*Mitigations (`crates/podcast-core/src/youtube.rs`):*
+* Network access happens only when the user pastes links (or loads a .txt
+  list) and clicks "Pobierz" (`add_youtube` command). There is no other
+  network code in the app. Link lists are parsed by `parse_link_list`
+  (one link per line, max 1000, comments and duplicates skipped); the
+  `read_link_file` command reads only `.txt`/`.csv` files up to 1 MB.
+* `parse_video_id` accepts only `http(s)` links to `youtube.com`,
+  `www./m./music.youtube.com` or `youtu.be` with an 11-character id
+  (`[A-Za-z0-9_-]`); everything else (playlists, other hosts, look-alike
+  domains, option-like text) is rejected (tests `rejects_everything_else`).
+  yt-dlp only ever receives the canonical
+  `https://www.youtube.com/watch?v=<id>`, after `--`, as the last argument.
+* yt-dlp runs with `--ignore-config` (no user/system config files),
+  `--no-playlist`, `--no-exec`, no post-processors, audio-only format
+  selection, and an output template built from `[a-z0-9-]` plus the id in
+  an app-chosen folder (`Downloads/SCh Tomy YouTube`). The reported file
+  path is accepted only inside that folder.
+* The binaries are pinned like ffmpeg: yt-dlp 2026.10.26 official release
+  binaries and Deno 2.9.7 official release zips, URL + SHA-256 in
+  `scripts/ffmpeg-sources.json` (sums equal upstream `SHA2-256SUMS` /
+  `.sha256sum`). yt-dlp gets the bundled Deno via `--js-runtimes deno:<path>`;
+  no remote components are enabled and there is no self-update.
+* Downloads run in a single worker, are cancellable, and cancelling kills
+  the whole process tree (`ffmpeg::kill_tree`: own process group on Unix,
+  `taskkill /T` on Windows) because the standalone yt-dlp builds start a
+  child process (test `failure_and_cancel`).
+* The downloaded file then goes through the same pipeline as T1 to T4.
+
+*Residual risk:* yt-dlp parses data from YouTube; a vulnerability there runs
+with the user's privileges, like T1. YouTube changes regularly break older
+yt-dlp versions; updating means a new app release (pinned, reviewed),
+deliberately not an in-app self-update.
 
 ## Out of scope
 

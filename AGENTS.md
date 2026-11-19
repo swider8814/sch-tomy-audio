@@ -15,7 +15,7 @@ writes tagged MP3 files. Users are non-technical, on Windows and macOS.
 | `src-tauri/` | Tauri app: commands, job queue, events. `binaries/` holds downloaded sidecars (git-ignored). |
 | `ui/` | Frontend (no bundler, served as is). |
 | `ui-tests/` | `node --test` tests of the frontend helpers. |
-| `scripts/` | `fetch-ffmpeg.mjs` + `ffmpeg-sources.json` (pinned URLs and SHA-256), icon generation. |
+| `scripts/` | `fetch-ffmpeg.mjs` + `ffmpeg-sources.json` (pinned URLs and SHA-256 of ffmpeg, ffprobe, yt-dlp, Deno), icon generation. |
 | `tools/vad/` | One-off script that derived the bundled VAD model from upstream Silero. |
 | `docs/threat-model.md`, `SECURITY.md` | Security model. |
 | `PLAN.md` | Architecture and recorded decisions. |
@@ -48,10 +48,12 @@ On Linux the app needs `libwebkit2gtk-4.1-dev`; Linux is only a dev platform.
   `INSTRUKCJA.md` is in Polish.
 * Originals are never overwritten. Output files are never overwritten either
   (a `-2`, `-3` suffix is added).
-* No telemetry, no network access (the only planned exception is the YouTube
-  download of stage 2, started explicitly by the user).
-* ffmpeg/ffprobe are always invoked with an argument list (`std::process::Command`),
-  never through a shell, with absolute input paths and `-protocol_whitelist file`.
+* No telemetry, no network access (the only exception is the YouTube
+  download in `youtube.rs`, started explicitly by the user).
+* ffmpeg/ffprobe/yt-dlp are always invoked with an argument list
+  (`std::process::Command`), never through a shell; ffmpeg inputs are
+  absolute paths with `-protocol_whitelist file`; yt-dlp gets only a
+  validated canonical YouTube URL after `--` and `--ignore-config`.
 * Every change in audio processing comes with a test.
 
 ## Review guidelines

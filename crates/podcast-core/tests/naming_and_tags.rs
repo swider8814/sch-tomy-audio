@@ -21,6 +21,7 @@ fn process_ok(
         cut: Cut::default(),
         title: title.into(),
         year,
+        file_name: None,
     };
     let mut log = String::new();
     process(
@@ -155,6 +156,48 @@ fn custom_output_folder_bitrate_and_mono() {
 }
 
 #[test]
+fn file_name_from_episode_title() {
+    let t = TestDir::new();
+    let rec = t.path("TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4");
+    make_audio(&t.path("src.wav"), &[Piece::Speech(5.0)]);
+    common::ffmpeg(&[
+        "-i",
+        &t.path("src.wav").to_string_lossy(),
+        "-c:a",
+        "aac",
+        &rec.to_string_lossy(),
+    ]);
+    let parts = podcast_core::naming::title_parts(&rec);
+    let title = podcast_core::naming::join_title("Co mi wolno?", &parts.suffix);
+    let job = JobInput {
+        recording: rec.clone(),
+        cut: Cut::default(),
+        title: title.clone(),
+        year: Some(2026),
+        file_name: podcast_core::naming::episode_file_name("Co mi wolno?", &parts.suffix),
+    };
+    let mut log = String::new();
+    let r = process(
+        &tools(),
+        &Settings::default(),
+        &job,
+        &CancelToken::new(),
+        &mut |_, _| {},
+        &mut log,
+    )
+    .unwrap_or_else(|e| panic!("{e}\n{log}"));
+    assert_eq!(
+        r.output.file_name().unwrap().to_string_lossy(),
+        "2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3"
+    );
+    let tag = Tag::read_from_path(&r.output).unwrap();
+    assert_eq!(
+        tag.title(),
+        Some("Co mi wolno? - Adam Szumorek - 2026.10.11")
+    );
+}
+
+#[test]
 fn missing_output_folder_is_a_friendly_error() {
     let t = TestDir::new();
     let rec = t.path("a.wav");
@@ -168,6 +211,7 @@ fn missing_output_folder_is_a_friendly_error() {
         cut: Cut::default(),
         title: "x".into(),
         year: None,
+        file_name: None,
     };
     let e = process(
         &tools(),

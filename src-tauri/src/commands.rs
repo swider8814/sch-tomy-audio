@@ -34,6 +34,8 @@ pub struct StateView {
     settings_note: Option<String>,
     preview_head: f64,
     preview_tail: f64,
+    /// Default folder for YouTube downloads (shown in the settings).
+    default_youtube_dir: String,
 }
 
 fn not_found() -> String {
@@ -64,6 +66,10 @@ fn editable(job: &Job) -> Result<(), String> {
         Status::Processing | Status::Queued => {
             Err("Tego pliku nie można zmienić podczas obróbki.".into())
         }
+        Status::Downloading => Err("Poczekaj, aż nagranie pobierze się z YouTube.".into()),
+        _ if job.needs_download() => {
+            Err("To nagranie nie zostało jeszcze pobrane z YouTube.".into())
+        }
         _ => Ok(()),
     }
 }
@@ -83,6 +89,7 @@ pub fn get_state(state: St<'_>) -> StateView {
         settings_note: g.settings_note.clone(),
         preview_head: PREVIEW_HEAD_S,
         preview_tail: PREVIEW_TAIL_S,
+        default_youtube_dir: state.default_youtube_dir.display().to_string(),
     }
 }
 
@@ -113,6 +120,13 @@ fn is_media(p: &Path) -> bool {
         .is_some_and(|e| MEDIA_EXTENSIONS.contains(&e.as_str()))
 }
 
+/// Text files that may hold a list of YouTube links.
+pub fn is_link_list(p: &Path) -> bool {
+    p.extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .is_some_and(|e| e == "txt" || e == "csv")
+}
+
 fn is_our_output(p: &Path) -> bool {
     p.file_name()
         .map(|n| n.to_string_lossy().to_ascii_lowercase())
@@ -141,6 +155,88 @@ pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
     added
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YoutubeAdded {
+    added: usize,
+    /// Repeated in the list or already on the job list.
+    skipped: usize,
+    /// "line N: text" of lines that are not YouTube video links.
+    invalid: Vec<String>,
+    /// Folder the audio is saved to.
+    dir: String,
+}
+
+/// Adds YouTube links (one per line; a single link works too). Each video
+/// is downloaded in list order, then processed like a dropped file.
+#[tauri::command]
+pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<YoutubeAdded, String> {
+    if let Err(e) = &state.yt {
+        // friendly text only; the technical cause is in e.details
+        return Err(e.user_message());
+    }
+    let list = podcast_core::youtube::parse_link_list(&text);
+    let invalid: Vec<String> = list
+        .invalid
+        .iter()
+        .map(|(n, t)| format!("linia {n}: {t}"))
+        .collect();
+    if list.ids.is_empty() {
+        return Err(if invalid.is_empty() {
+            "Wklej link do filmu na YouTube.".into()
+        } else {
+            podcast_core::CoreError::new(podcast_core::ErrorKind::YouTubeLink, "").user_message()
+        });
+    }
+    let mut g = state.lock();
+    let mut added = 0;
+    let mut skipped = list.duplicates;
+    for id in &list.ids {
+        let canonical = podcast_core::youtube::canonical_url(id);
+        if g.jobs
+            .iter()
+            .any(|j| j.view.source_url.as_deref() == Some(canonical.as_str()))
+        {
+            skipped += 1;
+            continue;
+        }
+        let job_id = g.next_id;
+        g.next_id += 1;
+        g.jobs.push(Job::new_youtube(job_id, id));
+        added += 1;
+    }
+    emit_jobs(&app, &g);
+    drop(g);
+    state.wake.notify_all();
+    Ok(YoutubeAdded {
+        added,
+        skipped,
+        invalid,
+        dir: state
+            .youtube_dir(&state.lock().settings)
+            .display()
+            .to_string(),
+    })
+}
+
+/// Reads a text file with links (for the YouTube dialog). Size limited.
+#[tauri::command(async)]
+pub fn read_link_file(path: String) -> Result<String, String> {
+    const MAX: u64 = 1024 * 1024;
+    let p = PathBuf::from(path);
+    if !is_link_list(&p) {
+        return Err("Wybierz plik tekstowy z linkami (.txt albo .csv).".into());
+    }
+    let meta =
+        std::fs::metadata(&p).map_err(|_| "Nie udało się odczytać pliku z linkami.".to_string())?;
+    if meta.len() > MAX {
+        return Err("Plik z linkami jest za duży (maksymalnie 1 MB).".into());
+    }
+    let bytes =
+        std::fs::read(&p).map_err(|_| "Nie udało się odczytać pliku z linkami.".to_string())?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
 #[tauri::command]
 pub fn remove_job(app: AppHandle, state: St<'_>, id: u64) {
     let mut g = state.lock();
@@ -160,10 +256,24 @@ pub fn clear_finished(app: AppHandle, state: St<'_>) {
 }
 
 #[tauri::command]
-pub fn set_title(app: AppHandle, state: St<'_>, id: u64, title: String) -> Result<(), String> {
+pub fn set_title(
+    app: AppHandle,
+    state: St<'_>,
+    id: u64,
+    sermon: String,
+    suffix: String,
+) -> Result<(), String> {
     with_job(&app, &state, id, |j| {
         editable(j)?;
-        let title: String = title.chars().take(300).collect();
+        let sermon: String = sermon.trim().chars().take(200).collect();
+        let suffix: String = suffix.trim().chars().take(200).collect();
+        let title = podcast_core::naming::join_title(&sermon, &suffix);
+        // The ID3 year follows the date in the suffix; without one, the date
+        // in the original file name (if any) is used, never a stale value.
+        j.view.year = crate::jobs::year_for(&suffix, &j.view.path);
+        j.view.sermon_title = sermon;
+        j.view.title_suffix = suffix;
+        j.refresh_output_name();
         if title != j.view.title {
             j.view.title = title;
             // The finished MP3 carries the old title: process it again.
@@ -434,8 +544,9 @@ pub fn save_settings(
     for j in g.jobs.iter_mut() {
         if matches!(
             j.view.status,
-            Status::Processing | Status::Queued | Status::Done
-        ) {
+            Status::Processing | Status::Queued | Status::Done | Status::Downloading
+        ) || j.needs_download()
+        {
             continue;
         }
         if window_changed {
@@ -457,7 +568,7 @@ pub fn start_all(app: AppHandle, state: St<'_>) -> usize {
     let mut g = state.lock();
     let mut n = 0;
     for j in g.jobs.iter_mut() {
-        if matches!(j.view.status, Status::Waiting | Status::Cancelled) {
+        if matches!(j.view.status, Status::Waiting | Status::Cancelled) && !j.needs_download() {
             j.view.status = Status::Queued;
             j.view.progress = 0.0;
             n += 1;
@@ -476,7 +587,10 @@ pub fn retry_job(app: AppHandle, state: St<'_>, id: u64) -> Result<(), String> {
             return Ok(());
         }
         j.view.error = None;
-        if j.view.duration.is_none() {
+        if j.needs_download() {
+            j.view.status = Status::Downloading;
+            j.view.progress = 0.0;
+        } else if j.view.duration.is_none() {
             // reading the file failed: analyse again
             j.view.status = Status::Analyzing;
             j.needs_analysis = true;
@@ -505,7 +619,7 @@ pub fn cancel_job(app: AppHandle, state: St<'_>, id: u64) -> Result<(), String> 
     with_job(&app, &state, id, |j| {
         match j.view.status {
             Status::Queued => j.view.status = Status::Waiting,
-            Status::Processing => j.cancel.cancel(),
+            Status::Processing | Status::Downloading => j.cancel.cancel(),
             _ => {}
         }
         Ok(())

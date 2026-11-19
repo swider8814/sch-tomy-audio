@@ -57,6 +57,11 @@ export function plikow(n) {
   return "plików";
 }
 
+/** Verb agreeing with plikow(n): "1 plik ma", "2 pliki mają", "5 plików ma". */
+export function maMaja(n) {
+  return plikow(n) === "pliki" ? "mają" : "ma";
+}
+
 /** Text of the start marker source shown in the list. */
 export function startSourceLabel(job) {
   switch (job.startSource) {
@@ -85,6 +90,7 @@ export const STAGE_LABELS = {
 };
 
 export const STATUS_LABELS = {
+  downloading: "Pobieranie z YouTube",
   analyzing: "Analiza pliku",
   waiting: "Czeka",
   queued: "W kolejce",

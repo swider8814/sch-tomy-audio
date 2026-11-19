@@ -4,6 +4,7 @@ use crate::jobs::{ErrorView, Job, JobView, Status};
 use podcast_core::pipeline::{self, Cut, JobInput};
 use podcast_core::settings::Settings;
 use podcast_core::teaser::{self, PatternMeta, PatternStore};
+use podcast_core::youtube::{self, YtTools};
 use podcast_core::{vad, CancelToken, CoreError, Tools};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -30,6 +31,10 @@ pub struct AppState {
     inner: Mutex<Inner>,
     pub wake: Condvar,
     pub tools: Result<Tools, CoreError>,
+    pub yt: Result<YtTools, CoreError>,
+    /// Default folder for YouTube audio (Downloads/SCh Tomy YouTube); the
+    /// setting `youtube_dir` overrides it.
+    pub default_youtube_dir: PathBuf,
     pub settings_path: PathBuf,
     pub store: PatternStore,
     /// Cancellation tokens of running preview decodes (waveform editor).
@@ -42,7 +47,7 @@ pub struct AppState {
 const SHUTDOWN_WAIT: Duration = Duration::from_secs(20);
 
 impl AppState {
-    pub fn new(config_dir: &Path, data_dir: &Path) -> Self {
+    pub fn new(config_dir: &Path, data_dir: &Path, download_dir: Option<PathBuf>) -> Self {
         let settings_path = config_dir.join("settings.json");
         let (settings, err) = Settings::load(&settings_path);
         let store = PatternStore::new(data_dir.join("patterns"));
@@ -63,6 +68,10 @@ impl AppState {
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
+            yt: YtTools::locate(),
+            default_youtube_dir: download_dir
+                .unwrap_or_else(|| data_dir.join("downloads"))
+                .join("SCh Tomy YouTube"),
             settings_path,
             store,
             previews: Mutex::new(Vec::new()),
@@ -90,6 +99,14 @@ impl AppState {
         for t in p.drain(..) {
             t.cancel();
         }
+    }
+
+    /// Folder for YouTube downloads: the setting, or the default.
+    pub fn youtube_dir(&self, settings: &Settings) -> PathBuf {
+        settings
+            .youtube_dir
+            .clone()
+            .unwrap_or_else(|| self.default_youtube_dir.clone())
     }
 
     pub fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -164,6 +181,10 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
         let (a, s) = (app.clone(), state.clone());
         handles.push(std::thread::spawn(move || processing_worker(a, s, slot)));
     }
+    {
+        let (a, s) = (app.clone(), state.clone());
+        handles.push(std::thread::spawn(move || download_worker(a, s)));
+    }
     state
         .workers
         .lock()
@@ -202,7 +223,11 @@ fn next_analysis(state: &AppState) -> Option<AnalysisTask> {
         if let Some(j) = g.jobs.iter_mut().find(|j| {
             j.needs_analysis
                 && !j.analysis_running
-                && !matches!(j.view.status, Status::Processing | Status::Done)
+                && !j.needs_download()
+                && !matches!(
+                    j.view.status,
+                    Status::Processing | Status::Done | Status::Downloading
+                )
         }) {
             j.needs_analysis = false;
             j.analysis_running = true;
@@ -348,6 +373,7 @@ fn next_processing(app: &AppHandle, state: &AppState, slot: usize) -> Option<Pro
                         },
                         title: j.view.title.clone(),
                         year: j.view.year,
+                        file_name: j.file_name(),
                     },
                     cancel: j.cancel.clone(),
                     settings,
@@ -409,6 +435,102 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                     j.log.push_str(&format!("\nERROR: {e}\n"));
                     j.view.status = Status::Error;
                     j.view.error = Some(friendly(&e));
+                }
+            }
+            emit_job(&app, &j.view);
+        }
+        drop(g);
+        state.wake.notify_all();
+    }
+}
+
+// ---------------------------------------------------------------- YouTube
+
+struct DownloadTask {
+    id: u64,
+    url: String,
+    cancel: CancelToken,
+    dir: PathBuf,
+}
+
+fn next_download(state: &AppState) -> Option<DownloadTask> {
+    let mut g = state.lock();
+    loop {
+        if g.shutting_down {
+            return None;
+        }
+        if let Some(j) = g.jobs.iter_mut().find(|j| {
+            j.view.status == Status::Downloading && j.needs_download() && !j.download_running
+        }) {
+            j.download_running = true;
+            j.cancel = CancelToken::new();
+            let task = DownloadTask {
+                id: j.view.id,
+                url: j.view.source_url.clone().unwrap_or_default(),
+                cancel: j.cancel.clone(),
+                dir: PathBuf::new(),
+            };
+            let dir = state.youtube_dir(&g.settings);
+            return Some(DownloadTask { dir, ..task });
+        }
+        g = state
+            .wake
+            .wait_timeout(g, Duration::from_millis(500))
+            .unwrap_or_else(|e| e.into_inner())
+            .0;
+    }
+}
+
+/// Downloads YouTube audio one link at a time (YouTube dislikes parallel
+/// downloads), then hands the file to the normal analysis.
+fn download_worker(app: AppHandle, state: Arc<AppState>) {
+    while let Some(task) = next_download(&state) {
+        let mut log = format!("YouTube: {}\n", task.url);
+        let result = (|| -> Result<(PathBuf, youtube::VideoInfo), CoreError> {
+            let tools = state.yt.as_ref().map_err(Clone::clone)?;
+            let id = youtube::parse_video_id(&task.url)?;
+            let info = youtube::fetch_metadata(tools, &id, &task.cancel)?;
+            log.push_str(&format!(
+                "Title: {}\nUploaded: {:?}\n",
+                info.title, info.upload_date
+            ));
+            let mut last = Instant::now() - Duration::from_secs(1);
+            let mut on_progress = |p: f64| {
+                if last.elapsed() < Duration::from_millis(300) {
+                    return;
+                }
+                last = Instant::now();
+                let mut g = state.lock();
+                if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
+                    j.view.progress = p;
+                    emit_job(&app, &j.view);
+                }
+            };
+            let path =
+                youtube::download_audio(tools, &info, &task.dir, &task.cancel, &mut on_progress)?;
+            Ok((path, info))
+        })();
+        let mut g = state.lock();
+        if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
+            j.download_running = false;
+            match result {
+                Ok((path, info)) => {
+                    log.push_str(&format!("Saved: {}\n", path.display()));
+                    j.log = log;
+                    j.downloaded(path, &info);
+                }
+                Err(e) => {
+                    j.log = format!("{log}\nERROR: {e}\n");
+                    j.view.status = Status::Error;
+                    j.view.progress = 0.0;
+                    j.view.error = Some(if e.is_cancelled() {
+                        ErrorView {
+                            message: "Pobieranie przerwane. Kliknij „Spróbuj ponownie”, żeby pobrać jeszcze raz.".into(),
+                            details: e.details.clone(),
+                        }
+                    } else {
+                        friendly(&e)
+                    });
                 }
             }
             emit_job(&app, &j.view);

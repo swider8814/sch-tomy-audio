@@ -23,7 +23,10 @@
         <p class="hint">
           Nagrania MP3, WAV, M4A, MP4, MOV, WEBM i inne. Możesz przeciągnąć kilka plików naraz albo cały folder.
         </p>
-        <button id="btn-add" class="primary" type="button">Wybierz pliki</button>
+        <div class="drop-buttons">
+          <button id="btn-add" class="primary" type="button">Wybierz pliki</button>
+          <button id="btn-youtube" type="button">Pobierz z YouTube</button>
+        </div>
       </section>
 
       <section id="list-section">
@@ -133,6 +136,27 @@
       </form>
     </dialog>
 
+    <!-- YouTube links -->
+    <dialog id="ytdlg">
+      <form method="dialog" class="dialog-body" id="yt-form" autocomplete="off">
+        <h2>Pobierz z YouTube</h2>
+        <label for="yt-links">Wklej link do filmu. Możesz wkleić kilka linków, każdy w osobnej linii.</label>
+        <textarea id="yt-links" rows="6" placeholder="https://www.youtube.com/watch?v=...&#10;https://youtu.be/..." spellcheck="false"></textarea>
+        <div class="yt-tools">
+          <button type="button" id="yt-file" class="small">Wczytaj listę z pliku (.txt)</button>
+          <span class="hint" id="yt-count"></span>
+        </div>
+        <p class="hint">
+          Pobierany jest sam dźwięk, po kolei, do folderu Pobrane/SCh Tomy YouTube. Potem nagrania trafiają na listę jak zwykłe pliki.
+        </p>
+        <p id="yt-error" class="error-text" role="alert"></p>
+        <div class="dialog-buttons">
+          <button type="button" id="yt-cancel">Anuluj</button>
+          <button type="submit" class="primary" id="yt-add">Pobierz</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- Settings -->
     <dialog id="settings" class="wide">
       <form method="dialog" class="dialog-body" id="settings-form">
@@ -168,7 +192,18 @@
             <span class="path" data-path></span>
             <button type="button" data-choose>Wybierz folder</button>
           </div>
-          <p class="hint">Plik wynikowy dostaje nazwę oryginału z dopiskiem „-podcast”. Oryginał nigdy nie jest nadpisywany.</p>
+          <p class="hint">Gotowy plik dostaje nazwę z daty, tytułu i kaznodziei, np. 2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3. Oryginał nigdy nie jest nadpisywany.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Nagrania z YouTube</legend>
+          <div class="file-row" data-file="youtube_dir">
+            <span class="label">Zapisuj w</span>
+            <span class="path" data-path></span>
+            <button type="button" data-choose>Wybierz folder</button>
+            <button type="button" data-clear>Domyślny</button>
+          </div>
+          <p class="hint">Tu trafia dźwięk pobrany z YouTube (przed obróbką). Gotowe pliki podcastu zapisują się zgodnie z ustawieniem „Gdzie zapisać wyniki”.</p>
         </fieldset>
 
         <fieldset>

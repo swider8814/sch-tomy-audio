@@ -1,6 +1,6 @@
 // Main window: file list, drag and drop, processing controls.
 
-import { formatTime, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
+import { formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
@@ -16,6 +16,7 @@ export const app = {
   settingsNote: null,
   previewHead: 180,
   previewTail: 120,
+  defaultYoutubeDir: "",
 };
 
 const rows = new Map(); // id -> { tr, title, start, status, result, actions }
@@ -30,6 +31,7 @@ async function refresh() {
   app.settingsNote = s.settingsNote;
   app.previewHead = s.previewHead;
   app.previewTail = s.previewTail;
+  app.defaultYoutubeDir = s.defaultYoutubeDir;
   setJobs(s.jobs);
   renderBanners();
 }
@@ -112,36 +114,67 @@ function renderList() {
 }
 
 function createRow(id) {
-  const title = h("input", {
+  const sermon = h("input", {
     class: "title-input",
     type: "text",
-    maxlength: 300,
-    "aria-label": "Tytuł odcinka",
-    title: "Tytuł odcinka zapisany w tagach MP3",
+    maxlength: 200,
+    placeholder: "Wpisz tytuł kazania",
+    "aria-label": "Tytuł kazania",
   });
-  title.addEventListener("change", async () => {
+  const suffix = h("input", {
+    class: "suffix-input",
+    type: "text",
+    maxlength: 200,
+    placeholder: "Kaznodzieja - RRRR.MM.DD",
+    "aria-label": "Kaznodzieja i data",
+    title: "Kaznodzieja i data, odczytane z nazwy pliku. Możesz je poprawić.",
+  });
+  const preview = h("div", { class: "hint title-preview" });
+  const save = async () => {
     try {
-      await invoke("set_title", { id, title: title.value });
+      await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
     } catch (e) {
       toast(errorText(e));
     }
-  });
+  };
+  sermon.addEventListener("change", save);
+  suffix.addEventListener("change", save);
   const fileName = h("div", { class: "file-name" });
   const r = {
     tr: h("tr"),
     fileName,
-    title,
+    sermon,
+    suffix,
+    preview,
     start: h("td", { class: "c-start" }),
     status: h("td", { class: "c-status" }),
     result: h("td", { class: "c-result" }),
     actions: h("td", { class: "c-actions" }),
   };
-  r.tr.append(h("td", { class: "c-title" }, fileName, title), r.start, r.status, r.result, r.actions);
+  r.tr.append(
+    h(
+      "td",
+      { class: "c-title" },
+      fileName,
+      sermon,
+      h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "Kaznodzieja i data:"), suffix),
+      preview,
+    ),
+    r.start,
+    r.status,
+    r.result,
+    r.actions,
+  );
   return r;
 }
 
+/** True when the episode still needs a sermon title typed in. */
+export function missingSermon(job) {
+  return !job.sermonTitle?.trim();
+}
+
 function busy(job) {
-  return job.status === "processing" || job.status === "queued";
+  return job.status === "processing" || job.status === "queued" || job.status === "downloading";
 }
 
 function updateRow(job) {
@@ -149,12 +182,26 @@ function updateRow(job) {
   if (!r) return;
   r.fileName.textContent = job.fileName;
   r.fileName.title = job.path;
-  if (document.activeElement !== r.title) r.title.value = job.title;
-  r.title.disabled = busy(job);
+  if (document.activeElement !== r.sermon) r.sermon.value = job.sermonTitle ?? "";
+  if (document.activeElement !== r.suffix) r.suffix.value = job.titleSuffix ?? "";
+  r.sermon.disabled = busy(job);
+  r.suffix.disabled = busy(job);
+  r.sermon.classList.toggle(
+    "missing",
+    missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
+  );
+  const previewLines = [];
+  if (job.status !== "downloading") {
+    previewLines.push(h("div", {}, `Tytuł w tagach MP3: ${job.title || "(pusty)"}`));
+    if (job.status !== "done" && job.outputName) previewLines.push(h("div", {}, `Nazwa pliku: ${job.outputName}`));
+  }
+  r.preview.replaceChildren(...previewLines);
 
   // start marker
   r.start.replaceChildren();
-  if (job.status === "analyzing") {
+  if (job.status === "downloading" || (job.sourceUrl && job.duration == null && job.status === "error")) {
+    r.start.append(h("span", { class: "hint" }, "Najpierw pobieranie z YouTube"));
+  } else if (job.status === "analyzing") {
     r.start.append(h("span", { class: "hint" }, "Szukam początku kazania..."));
   } else {
     const label = startSourceLabel(job);
@@ -181,6 +228,13 @@ function updateRow(job) {
   // status
   r.status.replaceChildren();
   const st = h("div", { class: "stack" }, h("span", { class: `badge ${job.status}` }, STATUS_LABELS[job.status] ?? job.status));
+  if (job.status === "downloading") {
+    const pct = Math.round((job.progress ?? 0) * 100);
+    st.append(
+      h("div", { class: "bar" }, h("div", { style: `width:${pct}%` })),
+      h("div", { class: "hint" }, pct > 0 ? `Pobieranie dźwięku (${pct}%)` : "Łączenie z YouTube..."),
+    );
+  }
   if (job.status === "processing") {
     const pct = Math.round((job.progress ?? 0) * 100);
     st.append(
@@ -247,6 +301,7 @@ function renderToolbar() {
   const processing = count("processing");
   const queued = count("queued");
   const analyzing = count("analyzing");
+  const downloading = count("downloading");
   const proposals = jobs.filter(
     (j) => ["waiting", "cancelled"].includes(j.status) && ["vadProposal", "patternProposal"].includes(j.startSource),
   ).length;
@@ -257,10 +312,15 @@ function renderToolbar() {
   if (processing + queued) parts.push(`w obróbce: ${processing + queued}`);
   if (errors) parts.push(`błędy: ${errors}`);
   if (analyzing) parts.push(`analiza: ${analyzing}`);
-  let text = parts.join(", ");
-  if (proposals) text += `. ${proposals} ${plikow(proposals)} ma tylko propozycję startu, sprawdź przed obróbką.`;
+  if (downloading) parts.push(`pobieranie z YouTube: ${downloading}`);
+  const noTitle = jobs.filter((j) => ["waiting", "cancelled", "analyzing"].includes(j.status) && missingSermon(j)).length;
+  const sentences = [];
+  if (parts.length) sentences.push(`${parts.join(", ")}.`);
+  if (proposals) sentences.push(`${proposals} ${plikow(proposals)} ${maMaja(proposals)} tylko propozycję startu, sprawdź przed obróbką.`);
+  if (noTitle) sentences.push(`${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania.`);
+  const text = sentences.join(" ");
   $("#summary").textContent = text;
-  $("#summary").className = proposals ? "warn-text" : "";
+  $("#summary").className = proposals || noTitle ? "warn-text" : "";
 
   const startable = jobs.filter((j) => j.status === "waiting" || j.status === "cancelled").length;
   $("#btn-start").disabled = startable === 0 || !!app.toolsError;
@@ -284,6 +344,16 @@ function renderToolbar() {
 // ---------------------------------------------------------------- actions
 
 async function addPaths(paths) {
+  const lists = paths.filter((p) => /\.(txt|csv)$/i.test(p));
+  paths = paths.filter((p) => !/\.(txt|csv)$/i.test(p));
+  if (lists.length) {
+    const texts = [];
+    for (const p of lists) {
+      const t = await loadLinkFile(p);
+      if (t != null) texts.push(t);
+    }
+    if (texts.length) openYoutube(texts.join("\n"));
+  }
   if (!paths.length) return;
   try {
     const added = await invoke("add_files", { paths });
@@ -292,6 +362,81 @@ async function addPaths(paths) {
   } catch (e) {
     toast(errorText(e));
   }
+}
+
+// ---------------------------------------------------------------- YouTube
+
+const YT_LINK = /(https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/\S+)/i;
+
+function updateYtCount() {
+  const n = $("#yt-links")
+    .value.split(/\r?\n/)
+    .filter((l) => l.trim() && !l.trim().startsWith("#") && YT_LINK.test(l)).length;
+  $("#yt-count").textContent = n > 1 ? `Linków: ${n}` : "";
+}
+
+export function openYoutube(text = "") {
+  $("#yt-links").value = text;
+  $("#yt-error").textContent = "";
+  updateYtCount();
+  $("#ytdlg").showModal();
+  $("#yt-links").focus();
+}
+
+async function loadLinkFile(path) {
+  try {
+    return await invoke("read_link_file", { path });
+  } catch (e) {
+    toast(errorText(e), 6000);
+    return null;
+  }
+}
+
+async function addYoutube(ev) {
+  ev.preventDefault();
+  const text = $("#yt-links").value;
+  $("#yt-add").disabled = true;
+  $("#yt-error").textContent = "";
+  try {
+    const r = await invoke("add_youtube", { text });
+    const parts = [];
+    if (r.added) parts.push(`Dodano do pobrania: ${r.added}.`);
+    if (r.skipped) parts.push(`Pominięto powtórzone: ${r.skipped}.`);
+    if (r.invalid.length) {
+      $("#yt-error").textContent = `To nie są linki do filmów na YouTube (pominięto): ${r.invalid.slice(0, 5).join("; ")}${r.invalid.length > 5 ? "; ..." : ""}`;
+    }
+    if (!r.added && !r.invalid.length) parts.push("Te filmy są już na liście.");
+    toast(`${parts.join(" ")} Pliki zapiszę w folderze: ${r.dir}`, 7000);
+    if (!r.invalid.length) $("#ytdlg").close();
+    else {
+      $("#yt-links").value = "";
+      updateYtCount();
+    }
+  } catch (e) {
+    $("#yt-error").textContent = errorText(e);
+  } finally {
+    $("#yt-add").disabled = false;
+  }
+}
+
+function setupYoutube() {
+  $("#btn-youtube").addEventListener("click", () => openYoutube());
+  $("#yt-form").addEventListener("submit", addYoutube);
+  $("#yt-cancel").addEventListener("click", () => $("#ytdlg").close());
+  $("#yt-links").addEventListener("input", updateYtCount);
+  $("#yt-file").addEventListener("click", async () => {
+    const [p] = await pickFiles({
+      title: "Wybierz plik z linkami do YouTube",
+      filters: [{ name: "Lista linków", extensions: ["txt", "csv"] }],
+    });
+    if (!p) return;
+    const text = await loadLinkFile(p);
+    if (text != null) {
+      const cur = $("#yt-links").value.trim();
+      $("#yt-links").value = cur ? `${cur}\n${text}` : text;
+      updateYtCount();
+    }
+  });
 }
 
 async function chooseFiles() {
@@ -360,8 +505,17 @@ function setupCloseGuard() {
 
 function setupButtons() {
   $("#btn-add").addEventListener("click", chooseFiles);
+  setupYoutube();
   $("#btn-settings").addEventListener("click", () => openSettings());
   $("#btn-start").addEventListener("click", async () => {
+    const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;
+    if (noTitle) {
+      const ok = await tauriDialog().ask(
+        `${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania. W tagach MP3 zostanie wtedy tylko kaznodzieja i data. Przetworzyć mimo to?`,
+        { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
+      );
+      if (!ok) return;
+    }
     const n = await invoke("start_all");
     if (n) toast(`Rozpoczęto obróbkę: ${n} ${plikow(n)}.`);
   });

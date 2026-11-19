@@ -10,6 +10,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Status {
+    /// YouTube link: the audio is being downloaded.
+    Downloading,
     /// Added, analysis not finished yet.
     Analyzing,
     /// Ready, waiting for "Przetwórz wszystkie".
@@ -50,7 +52,16 @@ pub struct JobView {
     pub id: u64,
     pub path: PathBuf,
     pub file_name: String,
+    /// Full ID3 title: "<sermon_title> - <title_suffix>".
     pub title: String,
+    /// Sermon title typed by the user (or read from the file name).
+    pub sermon_title: String,
+    /// Speaker and date from the file name ("Adam Szumorek - 2026.10.11").
+    pub title_suffix: String,
+    /// Planned output file name (before a possible "-2" for duplicates).
+    pub output_name: String,
+    /// YouTube link the recording comes from (canonical form).
+    pub source_url: Option<String>,
     pub year: Option<i32>,
     pub duration: Option<f64>,
     pub status: Status,
@@ -80,6 +91,8 @@ pub struct Job {
     /// the result is kept when only teaser patterns change.
     pub vad_generation: u64,
     pub vad_done: Option<u64>,
+    /// A YouTube download for this job is running.
+    pub download_running: bool,
 }
 
 impl Job {
@@ -88,14 +101,19 @@ impl Job {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        let title = podcast_core::naming::default_title(&path);
+        let parts = podcast_core::naming::title_parts(&path);
+        let title = podcast_core::naming::join_title(&parts.sermon, &parts.suffix);
         let year = Some(podcast_core::naming::default_year(&path));
-        Self {
+        let mut job = Self {
             view: JobView {
                 id,
                 path,
                 file_name,
                 title,
+                output_name: String::new(),
+                source_url: None,
+                sermon_title: parts.sermon,
+                title_suffix: parts.suffix,
                 year,
                 duration: None,
                 status: Status::Analyzing,
@@ -117,11 +135,67 @@ impl Job {
             analysis_cancel: CancelToken::new(),
             vad_generation: 0,
             vad_done: None,
-        }
+            download_running: false,
+        };
+        job.refresh_output_name();
+        job
     }
 
     /// Chooses the start marker from the analysis results unless the user
     /// has set one by hand.
+    /// A job for a YouTube video: downloaded first, then analysed.
+    pub fn new_youtube(id: u64, video_id: &str) -> Self {
+        let url = podcast_core::youtube::canonical_url(video_id);
+        let mut job = Job::new(id, PathBuf::new());
+        job.view.file_name = format!("YouTube: {url}");
+        job.view.title = String::new();
+        job.view.sermon_title = String::new();
+        job.view.title_suffix = String::new();
+        job.view.year = None;
+        job.view.source_url = Some(url);
+        job.view.status = Status::Downloading;
+        job.view.output_name = String::new();
+        job.needs_analysis = false;
+        job
+    }
+
+    /// The YouTube download finished: switch to the downloaded file and
+    /// prefill the title from the video (title, upload date).
+    pub fn downloaded(&mut self, path: PathBuf, info: &podcast_core::youtube::VideoInfo) {
+        self.view.file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.view.path = path;
+        self.view.sermon_title = info.title.trim().chars().take(200).collect();
+        self.view.title_suffix = info.dotted_date().unwrap_or_default();
+        self.view.title =
+            podcast_core::naming::join_title(&self.view.sermon_title, &self.view.title_suffix);
+        self.view.year = info.date().map(|(y, _, _)| y);
+        self.view.status = Status::Analyzing;
+        self.view.progress = 0.0;
+        self.view.error = None;
+        self.needs_analysis = true;
+        self.refresh_output_name();
+    }
+
+    /// True for a YouTube job whose audio has not been downloaded yet.
+    pub fn needs_download(&self) -> bool {
+        self.view.source_url.is_some() && self.view.path.as_os_str().is_empty()
+    }
+
+    /// Output file name requested for this job (episode title based).
+    pub fn file_name(&self) -> Option<String> {
+        podcast_core::naming::episode_file_name(&self.view.sermon_title, &self.view.title_suffix)
+    }
+
+    /// Recomputes the planned output file name shown in the list.
+    pub fn refresh_output_name(&mut self) {
+        self.view.output_name = self
+            .file_name()
+            .unwrap_or_else(|| podcast_core::naming::output_file_name(&self.view.path));
+    }
+
     pub fn apply_suggestions(&mut self, threshold: f64) {
         if self.view.start_source == StartSource::Manual {
             return;
@@ -148,6 +222,17 @@ impl Job {
     }
 }
 
+/// ID3 year: the date in the "speaker - date" suffix, else a date in the
+/// original file name, else none (never a stale value).
+pub fn year_for(suffix: &str, path: &std::path::Path) -> Option<i32> {
+    podcast_core::naming::date_from_name(suffix)
+        .map(|(y, _, _)| y)
+        .or_else(|| {
+            path.file_stem()
+                .and_then(|n| podcast_core::naming::year_from_name(&n.to_string_lossy()))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,6 +249,61 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn year_follows_the_suffix() {
+        let p = PathBuf::from("/k/TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4");
+        assert_eq!(year_for("Adam Szumorek - 2025.12.24", &p), Some(2025));
+        // date removed from the suffix: back to the file name, not stale
+        assert_eq!(year_for("Adam Szumorek", &p), Some(2026));
+        assert_eq!(
+            year_for("Adam Szumorek", &PathBuf::from("/d/x-yt-abc.m4a")),
+            None
+        );
+    }
+
+    #[test]
+    fn youtube_job_lifecycle() {
+        let mut j = Job::new_youtube(3, "dQw4w9WgXcQ");
+        assert_eq!(j.view.status, Status::Downloading);
+        assert!(j.needs_download());
+        assert!(!j.needs_analysis);
+        let info = podcast_core::youtube::VideoInfo {
+            id: "dQw4w9WgXcQ".into(),
+            title: "Co mi wolno?".into(),
+            upload_date: Some("20261011".into()),
+            uploader: None,
+            channel: None,
+            duration: None,
+        };
+        j.downloaded(
+            PathBuf::from("/d/2026-10-11-co-mi-wolno-yt-dQw4w9WgXcQ.m4a"),
+            &info,
+        );
+        assert!(!j.needs_download());
+        assert!(j.needs_analysis);
+        assert_eq!(j.view.status, Status::Analyzing);
+        assert_eq!(j.view.title, "Co mi wolno? - 2026.10.11");
+        assert_eq!(j.view.year, Some(2026));
+        assert_eq!(j.view.output_name, "2026-10-11-co-mi-wolno-podcast.mp3");
+        assert_eq!(
+            serde_json::to_value(&j.view).unwrap()["sourceUrl"],
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
+    }
+
+    #[test]
+    fn title_parts_from_church_file_name() {
+        let j = Job::new(
+            2,
+            PathBuf::from("/k/TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4"),
+        );
+        assert_eq!(j.view.sermon_title, "");
+        assert_eq!(j.view.title_suffix, "Adam Szumorek - 2026.10.11");
+        assert_eq!(j.view.title, "Adam Szumorek - 2026.10.11");
+        assert_eq!(j.view.year, Some(2026));
+        assert_eq!(j.view.output_name, "2026-10-11-adam-szumorek-podcast.mp3");
     }
 
     #[test]

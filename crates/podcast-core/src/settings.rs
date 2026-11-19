@@ -38,6 +38,9 @@ pub struct Settings {
     pub cover: Option<PathBuf>,
     /// `None` = next to the original file.
     pub output_dir: Option<PathBuf>,
+    /// Where audio downloaded from YouTube is saved; `None` = the default
+    /// "Downloads/SCh Tomy YouTube".
+    pub youtube_dir: Option<PathBuf>,
     pub target_lufs: f64,
     pub target_tp: f64,
     pub target_lra: f64,
@@ -64,6 +67,7 @@ impl Default for Settings {
             outro: None,
             cover: None,
             output_dir: None,
+            youtube_dir: None,
             target_lufs: -16.0,
             target_tp: -1.0,
             target_lra: 11.0,
@@ -208,6 +212,7 @@ mod tests {
         let s = Settings {
             intro: Some(PathBuf::from("/Users/łucja/Muzyka/intro zespołu.mp3")),
             gap_before_outro: 2.5,
+            youtube_dir: Some(PathBuf::from("C:/Users/Łucja/Kazania z YouTube")),
             ..Default::default()
         };
         s.save(&p).unwrap();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatTime, parseTime, plNumber, plikow, startSourceLabel } from "../ui/js/format.js";
+import { formatTime, maMaja, parseTime, plNumber, plikow, startSourceLabel } from "../ui/js/format.js";
 
 test("formatTime", () => {
   assert.equal(formatTime(0), "00:00,0");
@@ -40,6 +40,9 @@ test("Polish helpers", () => {
   assert.equal(plikow(5), "plików");
   assert.equal(plikow(12), "plików");
   assert.equal(plikow(22), "pliki");
+  assert.equal(`1 ${plikow(1)} ${maMaja(1)}`, "1 plik ma");
+  assert.equal(`2 ${plikow(2)} ${maMaja(2)}`, "2 pliki mają");
+  assert.equal(`5 ${plikow(5)} ${maMaja(5)}`, "5 plików ma");
 });
 
 test("start source labels avoid long dashes", () => {
