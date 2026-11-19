@@ -26,6 +26,7 @@ fn main() {
             commands::get_state,
             commands::add_files,
             commands::add_youtube,
+            commands::read_link_file,
             commands::remove_job,
             commands::clear_finished,
             commands::set_title,

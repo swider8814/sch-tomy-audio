@@ -117,6 +117,13 @@ fn is_media(p: &Path) -> bool {
         .is_some_and(|e| MEDIA_EXTENSIONS.contains(&e.as_str()))
 }
 
+/// Text files that may hold a list of YouTube links.
+pub fn is_link_list(p: &Path) -> bool {
+    p.extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .is_some_and(|e| e == "txt" || e == "csv")
+}
+
 fn is_our_output(p: &Path) -> bool {
     p.file_name()
         .map(|n| n.to_string_lossy().to_ascii_lowercase())
@@ -145,28 +152,82 @@ pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
     added
 }
 
-/// Adds a YouTube link: the audio is downloaded, then processed like a file.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct YoutubeAdded {
+    added: usize,
+    /// Repeated in the list or already on the job list.
+    skipped: usize,
+    /// "line N: text" of lines that are not YouTube video links.
+    invalid: Vec<String>,
+    /// Folder the audio is saved to.
+    dir: String,
+}
+
+/// Adds YouTube links (one per line; a single link works too). Each video
+/// is downloaded in list order, then processed like a dropped file.
 #[tauri::command]
-pub fn add_youtube(app: AppHandle, state: St<'_>, url: String) -> Result<String, String> {
-    let id = podcast_core::youtube::parse_video_id(&url).map_err(|e| e.user_message())?;
+pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<YoutubeAdded, String> {
     if let Err(e) = &state.yt {
         return Err(format!("{} ({})", e.user_message(), e.details));
     }
-    let canonical = podcast_core::youtube::canonical_url(&id);
-    let mut g = state.lock();
-    if g.jobs
+    let list = podcast_core::youtube::parse_link_list(&text);
+    let invalid: Vec<String> = list
+        .invalid
         .iter()
-        .any(|j| j.view.source_url.as_deref() == Some(canonical.as_str()))
-    {
-        return Err("Ten film jest już na liście.".into());
+        .map(|(n, t)| format!("linia {n}: {t}"))
+        .collect();
+    if list.ids.is_empty() {
+        return Err(if invalid.is_empty() {
+            "Wklej link do filmu na YouTube.".into()
+        } else {
+            podcast_core::CoreError::new(podcast_core::ErrorKind::YouTubeLink, "").user_message()
+        });
     }
-    let job_id = g.next_id;
-    g.next_id += 1;
-    g.jobs.push(Job::new_youtube(job_id, &id));
+    let mut g = state.lock();
+    let mut added = 0;
+    let mut skipped = list.duplicates;
+    for id in &list.ids {
+        let canonical = podcast_core::youtube::canonical_url(id);
+        if g.jobs
+            .iter()
+            .any(|j| j.view.source_url.as_deref() == Some(canonical.as_str()))
+        {
+            skipped += 1;
+            continue;
+        }
+        let job_id = g.next_id;
+        g.next_id += 1;
+        g.jobs.push(Job::new_youtube(job_id, id));
+        added += 1;
+    }
     emit_jobs(&app, &g);
     drop(g);
     state.wake.notify_all();
-    Ok(state.youtube_dir.display().to_string())
+    Ok(YoutubeAdded {
+        added,
+        skipped,
+        invalid,
+        dir: state.youtube_dir.display().to_string(),
+    })
+}
+
+/// Reads a text file with links (for the YouTube dialog). Size limited.
+#[tauri::command(async)]
+pub fn read_link_file(path: String) -> Result<String, String> {
+    const MAX: u64 = 1024 * 1024;
+    let p = PathBuf::from(path);
+    if !is_link_list(&p) {
+        return Err("Wybierz plik tekstowy z linkami (.txt albo .csv).".into());
+    }
+    let meta =
+        std::fs::metadata(&p).map_err(|_| "Nie udało się odczytać pliku z linkami.".to_string())?;
+    if meta.len() > MAX {
+        return Err("Plik z linkami jest za duży (maksymalnie 1 MB).".into());
+    }
+    let bytes =
+        std::fs::read(&p).map_err(|_| "Nie udało się odczytać pliku z linkami.".to_string())?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 #[tauri::command]

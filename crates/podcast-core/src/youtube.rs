@@ -90,6 +90,46 @@ pub fn parse_video_id(input: &str) -> Result<String> {
     }
 }
 
+/// Result of reading a list of links (one per line).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct LinkList {
+    /// Video ids in list order, without duplicates.
+    pub ids: Vec<String>,
+    /// Lines that are not YouTube video links: (line number, text).
+    pub invalid: Vec<(usize, String)>,
+    /// Number of repeated links that were skipped.
+    pub duplicates: usize,
+}
+
+/// Maximum number of links accepted from one list.
+pub const MAX_LINKS: usize = 1000;
+
+/// Parses a pasted text or a .txt file with YouTube links: one link per
+/// line, empty lines and lines starting with `#` are ignored. A line may
+/// contain other text (e.g. "Kazanie 1: https://youtu.be/..."); the first
+/// token that is a YouTube link is used.
+pub fn parse_link_list(text: &str) -> LinkList {
+    let mut out = LinkList::default();
+    for (n, raw) in text.lines().enumerate() {
+        let line = raw.trim().trim_start_matches('\u{feff}');
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let found = line
+            .split(|c: char| {
+                c.is_whitespace() || c == ',' || c == ';' || c == '"' || c == '<' || c == '>'
+            })
+            .find_map(|tok| parse_video_id(tok).ok());
+        match found {
+            Some(id) if out.ids.contains(&id) => out.duplicates += 1,
+            Some(id) if out.ids.len() < MAX_LINKS => out.ids.push(id),
+            Some(_) => {}
+            None => out.invalid.push((n + 1, line.chars().take(120).collect())),
+        }
+    }
+    out
+}
+
 pub fn canonical_url(id: &str) -> String {
     format!("https://www.youtube.com/watch?v={id}")
 }
@@ -393,6 +433,25 @@ mod tests {
         assert_eq!(parse_progress("SCHTOMY-PROGRESS 50 NA 100"), Some(0.5));
         assert_eq!(parse_progress("SCHTOMY-PROGRESS 50 NA NA"), None);
         assert_eq!(parse_progress("[download] 5%"), None);
+    }
+
+    #[test]
+    fn link_lists() {
+        let text = "\u{feff}# Kazania Piotrków\n\nhttps://youtu.be/dQw4w9WgXcQ\n  https://www.youtube.com/watch?v=a-b_c1234XY&t=1  \nKazanie 3: https://www.youtube.com/live/abcdefghijk?si=1\nhttps://youtu.be/dQw4w9WgXcQ?si=x\nto nie link\nhttps://evil.com/watch?v=dQw4w9WgXcQ\n";
+        let l = parse_link_list(text);
+        assert_eq!(l.ids, vec!["dQw4w9WgXcQ", "a-b_c1234XY", "abcdefghijk"]);
+        assert_eq!(l.duplicates, 1);
+        assert_eq!(
+            l.invalid,
+            vec![
+                (7, "to nie link".to_string()),
+                (8, "https://evil.com/watch?v=dQw4w9WgXcQ".to_string())
+            ]
+        );
+        assert_eq!(parse_link_list(""), LinkList::default());
+        // CSV-like lines with quotes and separators
+        let l = parse_link_list("\"Tytuł\";\"https://youtu.be/dQw4w9WgXcQ\"\r\n");
+        assert_eq!(l.ids, vec!["dQw4w9WgXcQ"]);
     }
 
     #[test]

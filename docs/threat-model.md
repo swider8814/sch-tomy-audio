@@ -190,9 +190,11 @@ configuration files or running commands, a compromised yt-dlp/Deno binary,
 hanging downloads.
 
 *Mitigations (`crates/podcast-core/src/youtube.rs`):*
-* Network access happens only when the user pastes a link and clicks
-  "Pobierz z YouTube" (`add_youtube` command). There is no other network
-  code in the app.
+* Network access happens only when the user pastes links (or loads a .txt
+  list) and clicks "Pobierz" (`add_youtube` command). There is no other
+  network code in the app. Link lists are parsed by `parse_link_list`
+  (one link per line, max 1000, comments and duplicates skipped); the
+  `read_link_file` command reads only `.txt`/`.csv` files up to 1 MB.
 * `parse_video_id` accepts only `http(s)` links to `youtube.com`,
   `www./m./music.youtube.com` or `youtu.be` with an 11-character id
   (`[A-Za-z0-9_-]`); everything else (playlists, other hosts, look-alike

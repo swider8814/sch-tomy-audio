@@ -80,12 +80,14 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 ## 5a. Nagrania z YouTube
 
-1. Skopiuj adres filmu z YouTube (np. `https://www.youtube.com/watch?v=...` albo `https://youtu.be/...`).
-2. Wklej go w pole **„albo wklej link do YouTube”** pod przyciskiem „Wybierz pliki” i kliknij **Pobierz z YouTube**.
-3. Aplikacja pobierze sam dźwięk (bez obrazu) do folderu **Pobrane/SCh Tomy YouTube** i doda go do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
+1. Kliknij **Pobierz z YouTube** (obok „Wybierz pliki”).
+2. Wklej adres filmu (np. `https://www.youtube.com/watch?v=...` albo `https://youtu.be/...`). Możesz wkleić kilka adresów naraz, każdy w osobnej linii.
+3. Kliknij **Pobierz**. Aplikacja pobierze sam dźwięk (bez obrazu), film po filmie, do folderu **Pobrane/SCh Tomy YouTube** i doda nagrania do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
 4. Dalej wszystko działa tak samo jak dla plików: sprawdź start, kliknij **Przetwórz wszystkie**.
 
-To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
+**Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.
+
+To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
 
 ## 6. Ustawianie początku i końca (Edytuj cięcie)
 

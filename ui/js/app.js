@@ -342,6 +342,16 @@ function renderToolbar() {
 // ---------------------------------------------------------------- actions
 
 async function addPaths(paths) {
+  const lists = paths.filter((p) => /\.(txt|csv)$/i.test(p));
+  paths = paths.filter((p) => !/\.(txt|csv)$/i.test(p));
+  if (lists.length) {
+    const texts = [];
+    for (const p of lists) {
+      const t = await loadLinkFile(p);
+      if (t != null) texts.push(t);
+    }
+    if (texts.length) openYoutube(texts.join("\n"));
+  }
   if (!paths.length) return;
   try {
     const added = await invoke("add_files", { paths });
@@ -352,24 +362,79 @@ async function addPaths(paths) {
   }
 }
 
-async function addYoutube(ev) {
-  ev.preventDefault();
-  const input = $("#yt-url");
-  const url = input.value.trim();
-  if (!url) {
-    toast("Wklej link do filmu na YouTube.");
-    return;
-  }
-  $("#yt-add").disabled = true;
+// ---------------------------------------------------------------- YouTube
+
+const YT_LINK = /(https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/\S+)/i;
+
+function updateYtCount() {
+  const n = $("#yt-links")
+    .value.split(/\r?\n/)
+    .filter((l) => l.trim() && !l.trim().startsWith("#") && YT_LINK.test(l)).length;
+  $("#yt-count").textContent = n > 1 ? `Linków: ${n}` : "";
+}
+
+export function openYoutube(text = "") {
+  $("#yt-links").value = text;
+  $("#yt-error").textContent = "";
+  updateYtCount();
+  $("#ytdlg").showModal();
+  $("#yt-links").focus();
+}
+
+async function loadLinkFile(path) {
   try {
-    const dir = await invoke("add_youtube", { url });
-    input.value = "";
-    toast(`Pobieram dźwięk z YouTube. Plik zapiszę w folderze: ${dir}`, 6000);
+    return await invoke("read_link_file", { path });
   } catch (e) {
     toast(errorText(e), 6000);
+    return null;
+  }
+}
+
+async function addYoutube(ev) {
+  ev.preventDefault();
+  const text = $("#yt-links").value;
+  $("#yt-add").disabled = true;
+  $("#yt-error").textContent = "";
+  try {
+    const r = await invoke("add_youtube", { text });
+    const parts = [];
+    if (r.added) parts.push(`Dodano do pobrania: ${r.added}.`);
+    if (r.skipped) parts.push(`Pominięto powtórzone: ${r.skipped}.`);
+    if (r.invalid.length) {
+      $("#yt-error").textContent = `To nie są linki do filmów na YouTube (pominięto): ${r.invalid.slice(0, 5).join("; ")}${r.invalid.length > 5 ? "; ..." : ""}`;
+    }
+    if (!r.added && !r.invalid.length) parts.push("Te filmy są już na liście.");
+    toast(`${parts.join(" ")} Pliki zapiszę w folderze: ${r.dir}`, 7000);
+    if (!r.invalid.length) $("#ytdlg").close();
+    else {
+      $("#yt-links").value = "";
+      updateYtCount();
+    }
+  } catch (e) {
+    $("#yt-error").textContent = errorText(e);
   } finally {
     $("#yt-add").disabled = false;
   }
+}
+
+function setupYoutube() {
+  $("#btn-youtube").addEventListener("click", () => openYoutube());
+  $("#yt-form").addEventListener("submit", addYoutube);
+  $("#yt-cancel").addEventListener("click", () => $("#ytdlg").close());
+  $("#yt-links").addEventListener("input", updateYtCount);
+  $("#yt-file").addEventListener("click", async () => {
+    const [p] = await pickFiles({
+      title: "Wybierz plik z linkami do YouTube",
+      filters: [{ name: "Lista linków", extensions: ["txt", "csv"] }],
+    });
+    if (!p) return;
+    const text = await loadLinkFile(p);
+    if (text != null) {
+      const cur = $("#yt-links").value.trim();
+      $("#yt-links").value = cur ? `${cur}\n${text}` : text;
+      updateYtCount();
+    }
+  });
 }
 
 async function chooseFiles() {
@@ -438,7 +503,7 @@ function setupCloseGuard() {
 
 function setupButtons() {
   $("#btn-add").addEventListener("click", chooseFiles);
-  $("#yt-form").addEventListener("submit", addYoutube);
+  setupYoutube();
   $("#btn-settings").addEventListener("click", () => openSettings());
   $("#btn-start").addEventListener("click", async () => {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;

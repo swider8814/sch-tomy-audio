@@ -214,7 +214,8 @@ pre#log-text {
 }
 #toast.show { opacity: 0.95; }
 
-.yt-row { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin-top: 0.9rem; flex-wrap: wrap; }
-.yt-row input { width: min(460px, 70vw); }
-.yt-label { color: var(--muted); font-size: 0.9rem; }
+.drop-buttons { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+#ytdlg { width: min(680px, 94vw); }
+#yt-links { width: 100%; margin-top: 0.4rem; font: inherit; font-size: 0.9rem; border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.55rem; resize: vertical; }
+.yt-tools { display: flex; gap: 0.8rem; align-items: center; margin-top: 0.4rem; }
 .badge.downloading { background: var(--info-bg); color: var(--accent); }
