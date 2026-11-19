@@ -8,6 +8,7 @@ pub mod ffmpeg;
 pub mod filters;
 pub mod naming;
 pub mod parse;
+pub mod pcm;
 pub mod pipeline;
 pub mod probe;
 pub mod settings;

@@ -7,7 +7,9 @@
 //! 4. loudnorm pass 1 (measure the whole rendered graph),
 //! 5. loudnorm pass 2 with measured values + MP3 CBR encode into a temporary
 //!    file, ID3 tags, rename to a fresh `<slug>-podcast.mp3`,
-//! 6. verify the result with ebur128 (LUFS, true peak) and ffprobe (duration).
+//! 6. verify the result with ebur128 (LUFS, true peak) and ffprobe (duration);
+//!    if MP3 encoding moved the loudness by more than 0.2 LU, re-encode once
+//!    with the target shifted by that error (keep the better file).
 
 use crate::error::{CoreError, ErrorKind, Result};
 use crate::ffmpeg::{display_command, run, CancelToken, StdoutMode, Tools};
@@ -24,6 +26,8 @@ use std::path::{Path, PathBuf};
 const END_TOLERANCE: f64 = 0.25;
 /// Deviation from the target loudness that is reported as a warning.
 pub const LUFS_WARNING_LU: f64 = 0.5;
+/// Deviation after encoding that triggers one corrective re-encode.
+pub const CORRECTION_THRESHOLD_LU: f64 = 0.2;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Cut {
@@ -46,6 +50,8 @@ pub enum Stage {
     Measure,
     Encode,
     Verify,
+    /// Optional second encode that corrects the loudness error of MP3.
+    Correct,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -165,10 +171,11 @@ struct Progress<'a> {
 impl Progress<'_> {
     fn report(&mut self, stage: Stage, within: f64) {
         let (a, b) = match stage {
-            Stage::Analysis => (0.0, 0.1),
-            Stage::Measure => (0.1, 0.45),
-            Stage::Encode => (0.45, 0.9),
-            Stage::Verify => (0.9, 1.0),
+            Stage::Analysis => (0.0, 0.08),
+            Stage::Measure => (0.08, 0.4),
+            Stage::Encode => (0.4, 0.8),
+            Stage::Verify => (0.8, 0.9),
+            Stage::Correct => (0.9, 1.0),
         };
         (self.cb)(stage, a + (b - a) * within.clamp(0.0, 1.0));
     }
@@ -354,8 +361,14 @@ pub fn process(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let tmp_path = out_dir.join(format!(".{file_name}.part"));
-    let mut cleanup = Cleanup(vec![final_path.clone(), tmp_path.clone()]);
+    // The temporary file keeps the .mp3 extension so it can be probed.
+    let tmp_path = out_dir.join(format!(".{file_name}.part.mp3"));
+    let tmp2_path = out_dir.join(format!(".{file_name}.part2.mp3"));
+    let mut cleanup = Cleanup(vec![
+        final_path.clone(),
+        tmp_path.clone(),
+        tmp2_path.clone(),
+    ]);
     if naming::same_file(&final_path, &job.recording) {
         return Err(CoreError::new(
             ErrorKind::OutputNotWritable,
@@ -364,22 +377,66 @@ pub fn process(
     }
 
     progress.report(Stage::Encode, 0.0);
-    let args = filters::encode_args(&plan, &target, &measured, &tmp_path);
-    log.push_str(&format!("$ {}\n", display_command(&tools.ffmpeg, &args)));
-    let out = {
-        let mut cb = |t: f64| progress.report(Stage::Encode, t / expected_len.max(1.0));
-        run(&tools.ffmpeg, &args, cancel, StdoutMode::Progress(&mut cb))?
-    };
-    let mode = match parse::parse_loudnorm(&out.stderr) {
-        Some((_, parse::LoudnormMode::Linear)) => "linear",
-        Some((_, parse::LoudnormMode::Dynamic)) => "dynamic",
-        _ => "unknown",
-    };
-    log.push_str(&format!("loudnorm mode: {mode}\n"));
+    let mode = encode(
+        tools,
+        &plan,
+        &target,
+        &measured,
+        &tmp_path,
+        cancel,
+        log,
+        &mut |t| progress.report(Stage::Encode, t / expected_len.max(1.0)),
+    )?;
+
+    // --- 6. verify ------------------------------------------------------
+    progress.report(Stage::Verify, 0.0);
+    let (mut loudness, mut duration) = measure_file(tools, &tmp_path, cancel, &mut |t| {
+        progress.report(Stage::Verify, t / expected_len.max(1.0))
+    })?;
+    log.push_str(&format!("Result: {loudness:?}, {duration:.2} s\n"));
+    let mut mode = mode;
+    let mut best = tmp_path.clone();
+
+    // MP3 encoding removes some high-frequency energy, so the result can end
+    // up a few tenths of a LU below the target. Re-encode once with the
+    // target shifted by the observed error when it is noticeable.
+    let error = target.i - loudness.integrated;
+    if loudness.integrated.is_finite() && error.abs() > CORRECTION_THRESHOLD_LU {
+        let corrected = filters::LoudnessTarget {
+            i: target.i + error.clamp(-3.0, 3.0),
+            ..target
+        };
+        log.push_str(&format!(
+            "Correction pass: target {:.2} LUFS\n",
+            corrected.i
+        ));
+        progress.report(Stage::Correct, 0.0);
+        let mode2 = encode(
+            tools,
+            &plan,
+            &corrected,
+            &measured,
+            &tmp2_path,
+            cancel,
+            log,
+            &mut |t| progress.report(Stage::Correct, 0.8 * t / expected_len.max(1.0)),
+        )?;
+        let (l2, d2) = measure_file(tools, &tmp2_path, cancel, &mut |t| {
+            progress.report(Stage::Correct, 0.8 + 0.2 * t / expected_len.max(1.0))
+        })?;
+        log.push_str(&format!("Corrected result: {l2:?}, {d2:.2} s\n"));
+        let tp_ok = l2.true_peak.is_none_or(|tp| tp <= target.tp + 0.05);
+        if tp_ok && (l2.integrated - target.i).abs() < (loudness.integrated - target.i).abs() {
+            loudness = l2;
+            duration = d2;
+            mode = mode2;
+            best = tmp2_path.clone();
+        }
+    }
     cancel.check()?;
 
     tags::write_tags(
-        &tmp_path,
+        &best,
         &EpisodeTags {
             title: job.title.clone(),
             artist: settings.artist.clone(),
@@ -389,31 +446,61 @@ pub fn process(
         },
     )?;
     cancel.check()?;
-    std::fs::rename(&tmp_path, &final_path).map_err(|e| {
+    std::fs::rename(&best, &final_path).map_err(|e| {
         CoreError::new(
             ErrorKind::OutputNotWritable,
             format!("rename to {}: {e}", final_path.display()),
         )
     })?;
-
-    // --- 6. verify ------------------------------------------------------
-    progress.report(Stage::Verify, 0.0);
-    let (loudness, duration) = measure_file(tools, &final_path, cancel, &mut |t| {
-        progress.report(Stage::Verify, t / expected_len.max(1.0))
-    })?;
-    log.push_str(&format!("Result: {loudness:?}, {duration:.2} s\n"));
     let warnings = loudness_warnings(&loudness, settings);
-    progress.report(Stage::Verify, 1.0);
-    cleanup.0.clear(); // success: keep the output
+    progress.report(Stage::Correct, 1.0);
+    // success: keep the output, remove the unused temporary file
+    cleanup.0.retain(|p| p != &final_path);
     Ok(ProcessResult {
         output: final_path,
         loudness,
         duration,
         trailing_silence_cut: seg.trailing_silence_cut,
         leading_silence_cut: seg.leading_silence_cut,
-        loudnorm_mode: mode.to_string(),
+        loudnorm_mode: mode,
         warnings,
     })
+}
+
+/// loudnorm pass 2 + MP3 encode; returns the loudnorm mode.
+#[allow(clippy::too_many_arguments)]
+fn encode(
+    tools: &Tools,
+    plan: &RenderPlan,
+    target: &filters::LoudnessTarget,
+    measured: &LoudnormMeasurement,
+    out: &Path,
+    cancel: &CancelToken,
+    log: &mut String,
+    on_seconds: &mut dyn FnMut(f64),
+) -> Result<String> {
+    let args = filters::encode_args(plan, target, measured, out);
+    log.push_str(&format!("$ {}\n", display_command(&tools.ffmpeg, &args)));
+    let res = run(
+        &tools.ffmpeg,
+        &args,
+        cancel,
+        StdoutMode::Progress(on_seconds),
+    )
+    .map_err(|e| {
+        if e.kind == ErrorKind::Processing && e.details.contains("No space left") {
+            CoreError::new(ErrorKind::OutputNotWritable, e.details)
+        } else {
+            e
+        }
+    })?;
+    let mode = match parse::parse_loudnorm(&res.stderr) {
+        Some((_, parse::LoudnormMode::Linear)) => "linear",
+        Some((_, parse::LoudnormMode::Dynamic)) => "dynamic",
+        _ => "unknown",
+    };
+    log.push_str(&format!("loudnorm mode: {mode}\n"));
+    Ok(mode.to_string())
 }
 
 fn check_measurement(m: &LoudnormMeasurement) -> Result<()> {

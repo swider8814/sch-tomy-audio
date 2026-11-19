@@ -42,7 +42,7 @@ pub fn slugify(s: &str) -> String {
         } else if c.is_ascii() {
             ascii.push(c);
         } else {
-            ascii.push_str(&deunicode::deunicode_char(c).unwrap_or("-").to_string());
+            ascii.push_str(deunicode::deunicode_char(c).unwrap_or("-"));
         }
     }
     let mut out = String::with_capacity(ascii.len());
