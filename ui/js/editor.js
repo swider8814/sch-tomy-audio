@@ -181,7 +181,7 @@ function draw(name) {
     if (label) {
       g.fillStyle = color;
       g.font = `bold ${11 * dpr}px system-ui, sans-serif`;
-      g.fillText(label, xx + 4 * dpr, 13 * dpr);
+      g.fillText(label, xx + 4 * dpr, (dashed ? 27 : 13) * dpr);
     }
   };
   const vad = ed.job?.vad;
