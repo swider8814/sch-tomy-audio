@@ -34,7 +34,8 @@ pub struct YtTools {
 impl YtTools {
     /// yt-dlp and Deno next to the executable (sidecars), env override or PATH.
     pub fn locate() -> Result<YtTools> {
-        let ytdlp = find_tool_path("yt-dlp", ENV_YTDLP)?;
+        let ytdlp = find_tool_path("yt-dlp", ENV_YTDLP)
+            .map_err(|e| CoreError::new(ErrorKind::YouTubeToolMissing, e.details))?;
         let deno = find_tool_path("deno", ENV_DENO).ok();
         Ok(YtTools { ytdlp, deno })
     }
@@ -249,6 +250,9 @@ pub fn parse_progress(line: &str) -> Option<f64> {
 
 /// Turns yt-dlp's error output into a friendly error kind.
 fn classify(e: CoreError) -> CoreError {
+    if e.kind == ErrorKind::ToolMissing {
+        return CoreError::new(ErrorKind::YouTubeToolMissing, e.details);
+    }
     if e.kind != ErrorKind::Processing {
         return e;
     }
@@ -271,6 +275,29 @@ pub fn fetch_metadata(tools: &YtTools, id: &str, cancel: &CancelToken) -> Result
     let args = metadata_args(tools, id);
     let out = run(&tools.ytdlp, &args, cancel, StdoutMode::Capture).map_err(classify)?;
     parse_metadata(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Removes everything yt-dlp left for this download (`<stem>.*`: the
+/// `.part` file, fragments, `.ytdl` state) after an error or cancel. The
+/// process tree is already killed; Windows may release file handles a moment
+/// later, so a failed delete is retried once.
+pub fn remove_partial_files(dir: &Path, stem: &str) {
+    let prefix = format!("{stem}.");
+    for attempt in 0..2 {
+        let mut left = false;
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name.starts_with(&prefix) && std::fs::remove_file(e.path()).is_err() {
+                    left = true;
+                }
+            }
+        }
+        if !left || attempt == 1 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
 }
 
 /// Downloads the audio into `dir` and returns the file path.
@@ -297,7 +324,10 @@ pub fn download_audio(
                 file = Some(PathBuf::from(f.trim()));
             }
         };
-        run(&tools.ytdlp, &args, cancel, StdoutMode::Lines(&mut on_line)).map_err(classify)?;
+        if let Err(e) = run(&tools.ytdlp, &args, cancel, StdoutMode::Lines(&mut on_line)) {
+            remove_partial_files(dir, &download_stem(info));
+            return Err(classify(e));
+        }
     }
     let stem = download_stem(info);
     // Trust only a file in our folder whose name starts with our stem.

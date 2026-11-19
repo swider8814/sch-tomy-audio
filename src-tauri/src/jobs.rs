@@ -222,6 +222,17 @@ impl Job {
     }
 }
 
+/// ID3 year: the date in the "speaker - date" suffix, else a date in the
+/// original file name, else none (never a stale value).
+pub fn year_for(suffix: &str, path: &std::path::Path) -> Option<i32> {
+    podcast_core::naming::date_from_name(suffix)
+        .map(|(y, _, _)| y)
+        .or_else(|| {
+            path.file_stem()
+                .and_then(|n| podcast_core::naming::year_from_name(&n.to_string_lossy()))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,6 +249,18 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn year_follows_the_suffix() {
+        let p = PathBuf::from("/k/TOMY Piotrków 2026.10.11 - Adam Szumorek.mp4");
+        assert_eq!(year_for("Adam Szumorek - 2025.12.24", &p), Some(2025));
+        // date removed from the suffix: back to the file name, not stale
+        assert_eq!(year_for("Adam Szumorek", &p), Some(2026));
+        assert_eq!(
+            year_for("Adam Szumorek", &PathBuf::from("/d/x-yt-abc.m4a")),
+            None
+        );
     }
 
     #[test]

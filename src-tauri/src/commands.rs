@@ -172,7 +172,8 @@ pub struct YoutubeAdded {
 #[tauri::command]
 pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<YoutubeAdded, String> {
     if let Err(e) = &state.yt {
-        return Err(format!("{} ({})", e.user_message(), e.details));
+        // friendly text only; the technical cause is in e.details
+        return Err(e.user_message());
     }
     let list = podcast_core::youtube::parse_link_list(&text);
     let invalid: Vec<String> = list
@@ -267,9 +268,9 @@ pub fn set_title(
         let sermon: String = sermon.trim().chars().take(200).collect();
         let suffix: String = suffix.trim().chars().take(200).collect();
         let title = podcast_core::naming::join_title(&sermon, &suffix);
-        if let Some((y, _, _)) = podcast_core::naming::date_from_name(&suffix) {
-            j.view.year = Some(y);
-        }
+        // The ID3 year follows the date in the suffix; without one, the date
+        // in the original file name (if any) is used, never a stale value.
+        j.view.year = crate::jobs::year_for(&suffix, &j.view.path);
         j.view.sermon_title = sermon;
         j.view.title_suffix = suffix;
         j.refresh_output_name();

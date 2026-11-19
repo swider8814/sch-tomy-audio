@@ -80,8 +80,12 @@ fn failure_and_cancel() {
     .unwrap_err();
     assert_eq!(e.kind, podcast_core::ErrorKind::YouTubeBlocked);
 
+    // the fake leaves a partial file before hanging
     let slow = YtTools {
-        ytdlp: fake_ytdlp(t.path(), "sleep 30"),
+        ytdlp: fake_ytdlp(
+            t.path(),
+            r#"while [ "$1" != "-o" ]; do shift; done; f="${2%.%(ext)s}"; printf x > "$f.m4a.part"; printf x > "$f.m4a.part-Frag1"; sleep 30"#,
+        ),
         deno: None,
     };
     let c = CancelToken::new();
@@ -91,7 +95,10 @@ fn failure_and_cancel() {
         c2.cancel();
     });
     let start = std::time::Instant::now();
-    let e = download_audio(&slow, &info(), t.path(), &c, &mut |_| {}).unwrap_err();
+    let out = t.path().join("pobrane");
+    let e = download_audio(&slow, &info(), &out, &c, &mut |_| {}).unwrap_err();
     assert!(e.is_cancelled());
     assert!(start.elapsed().as_secs() < 5);
+    let left: Vec<_> = std::fs::read_dir(&out).unwrap().collect();
+    assert!(left.is_empty(), "partial files left: {left:?}");
 }
