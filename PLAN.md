@@ -1,4 +1,4 @@
-# PLAN: SCh Tomy podcast audio tool
+# PLAN: SCh Tomy Audio
 
 Desktop app that turns raw sermon recordings (MP3 or audio/video pulled from
 YouTube) into podcast-ready MP3 files: cut the series teaser at the start,
@@ -167,6 +167,12 @@ docs/threat-model.md
   the release page; nothing is downloaded or installed by the app (an
   in-app updater would need signed update bundles and is not worth it for
   an unsigned app). Threat model T12.
+* **Name (v0.1.3):** the app is "SCh Tomy Audio" (was "SCh Tomy Podcast"),
+  like the repository. The bundle identifier `pl.schtomy.podcast-audio` is
+  unchanged on purpose: it names the data folder, so settings, patterns and
+  the job list carry over. Because the product name changed, Windows/macOS
+  install it next to the old app; the guide tells users to remove the old
+  one. The ID3 album "SCh Tomy podcast" is the podcast's name and stays.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

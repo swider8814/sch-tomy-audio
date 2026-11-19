@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SCh Tomy Podcast",
+  "productName": "SCh Tomy Audio",
   "version": "0.1.3",
   "identifier": "pl.schtomy.podcast-audio",
   "build": {

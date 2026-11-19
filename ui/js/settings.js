@@ -45,7 +45,7 @@ export function openSettings(tab = "basic") {
 }
 
 const TABS = ["basic", "sound", "advanced", "keys", "about"];
-const AUTHOR_MAIL = "mailto:daniel.swiderski@proem.pl?subject=SCh%20Tomy%20Podcast";
+const AUTHOR_MAIL = "mailto:daniel.swiderski@proem.pl?subject=SCh%20Tomy%20Audio";
 
 function showTab(name) {
   for (const t of TABS) {

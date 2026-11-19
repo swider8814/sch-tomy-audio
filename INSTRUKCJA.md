@@ -1,4 +1,4 @@
-# SCh Tomy Podcast: instrukcja
+# SCh Tomy Audio: instrukcja
 
 Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego pliku:
 
@@ -16,11 +16,16 @@ Aplikacja działa bez internetu i niczego o Tobie nie wysyła. Internetu używa 
 
 1. Wejdź na stronę repozytorium na GitHubie i kliknij **Releases** (po prawej stronie).
 2. Przy najnowszej wersji rozwiń **Assets** i pobierz plik dla swojego komputera:
-   * Windows: `SChTomyPodcast-...-windows-x64-setup.exe`
-   * Mac z procesorem Apple (M1, M2, M3, M4): `SChTomyPodcast-...-macos-apple-silicon.dmg`
-   * Mac z procesorem Intel: `SChTomyPodcast-...-macos-intel.dmg`
+   * Windows: `SChTomyAudio-...-windows-x64-setup.exe`
+   * Mac z procesorem Apple (M1, M2, M3, M4): `SChTomyAudio-...-macos-apple-silicon.dmg`
+   * Mac z procesorem Intel: `SChTomyAudio-...-macos-intel.dmg`
 
 Nie wiesz, jaki masz Mac? Kliknij jabłko w lewym górnym rogu, potem **Ten Mac**. Jeśli przy „Układ” widzisz „Apple M...”, wybierz wersję Apple Silicon. Jeśli przy „Procesor” widzisz „Intel”, wybierz wersję Intel.
+
+**Zmiana nazwy w wersji 0.1.3.** Do wersji 0.1.2 aplikacja nazywała się „SCh Tomy Podcast”, od wersji 0.1.3 nazywa się „SCh Tomy Audio”. Nowa wersja instaluje się jako osobna aplikacja, więc starą odinstaluj. Ustawienia, intro, outro, zapisane zajawki i lista plików zostaną zachowane.
+
+* **Windows:** otwórz **Ustawienia**, potem **Aplikacje**, znajdź **SCh Tomy Podcast** i kliknij **Odinstaluj**. Nie zaznaczaj usuwania danych aplikacji, jeśli instalator o to zapyta.
+* **Mac:** w folderze **Aplikacje** przeciągnij **SCh Tomy Podcast** do Kosza.
 
 ## 2. Instalacja na Windows
 
@@ -28,16 +33,16 @@ Nie wiesz, jaki masz Mac? Kliknij jabłko w lewym górnym rogu, potem **Ten Mac*
 2. Pojawi się niebieskie okno „System Windows ochronił ten komputer”. To normalne, bo aplikacja nie ma płatnego podpisu cyfrowego.
 3. Kliknij **Więcej informacji**, a potem **Uruchom mimo to**.
 4. Przejdź przez instalator (nie potrzebujesz uprawnień administratora).
-5. Uruchom aplikację z menu Start: **SCh Tomy Podcast**.
+5. Uruchom aplikację z menu Start: **SCh Tomy Audio**.
 
 ## 3. Instalacja na macOS
 
 1. Kliknij dwukrotnie pobrany plik `.dmg`.
-2. Przeciągnij ikonę **SCh Tomy Podcast** do folderu **Aplikacje**.
-3. Otwórz folder Aplikacje i kliknij dwukrotnie **SCh Tomy Podcast**.
+2. Przeciągnij ikonę **SCh Tomy Audio** do folderu **Aplikacje**.
+3. Otwórz folder Aplikacje i kliknij dwukrotnie **SCh Tomy Audio**.
 4. Pojawi się komunikat, że Apple nie może sprawdzić aplikacji. Kliknij **Gotowe** (albo **OK**). To normalne, bo aplikacja nie ma płatnego podpisu Apple.
 5. Otwórz **Ustawienia systemowe**, wejdź w **Prywatność i ochrona** i przewiń w dół do sekcji **Ochrona**.
-6. Przy informacji o zablokowanej aplikacji „SCh Tomy Podcast” kliknij **Otwórz mimo to** i potwierdź hasłem komputera.
+6. Przy informacji o zablokowanej aplikacji „SCh Tomy Audio” kliknij **Otwórz mimo to** i potwierdź hasłem komputera.
 7. W kolejnym okienku kliknij **Otwórz mimo to**. Od teraz aplikacja otwiera się normalnie.
 
 Na starszym macOS (13 Ventura i wcześniejsze) wystarczy: kliknij ikonę aplikacji prawym przyciskiem (albo z klawiszem Control), wybierz **Otwórz**, a potem jeszcze raz **Otwórz**.
@@ -45,7 +50,7 @@ Na starszym macOS (13 Ventura i wcześniejsze) wystarczy: kliknij ikonę aplikac
 Jeśli macOS pisze, że aplikacja „jest uszkodzona i nie można jej otworzyć”, otwórz program **Terminal** (Aplikacje, Narzędzia), wklej poniższą linię i naciśnij Enter, a potem otwórz aplikację ponownie:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/SCh Tomy Podcast.app"
+xattr -dr com.apple.quarantine "/Applications/SCh Tomy Audio.app"
 ```
 
 ## 4. Pierwsze uruchomienie: ustawienia

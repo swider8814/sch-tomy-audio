@@ -2,7 +2,7 @@
 
 ## System overview
 
-SCh Tomy Podcast is a local desktop application (Tauri 2: Rust backend,
+SCh Tomy Audio is a local desktop application (Tauri 2: Rust backend,
 HTML/JS frontend in the system webview). There is no server, no account, no
 telemetry and no network access in stage 1 (stage 2 adds the YouTube
 download and the update check, T11 and T12). The user drops audio/video files;

@@ -65,7 +65,7 @@ The owner creates each release in the GitHub UI (tag pushes are not
 available to agents). With every release give the owner, ready to paste:
 
 * the tag, e.g. `v0.1.3` (target `main`),
-* the title `SCh Tomy Podcast 0.1.3`,
+* the title `SCh Tomy Audio v0.1.3`,
 * release notes in Polish for non-technical users (what is new, fixes,
   which installer to download, known problems), following the UI text
   rules above (no em/en dashes or middle dots as separators, "Ty" form).

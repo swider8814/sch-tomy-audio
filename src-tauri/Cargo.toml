@@ -1,9 +1,9 @@
 [package]
-name = "schtomy-podcast"
+name = "schtomy-audio"
 version.workspace = true
 edition.workspace = true
 description = "SCh Tomy: przygotowanie kazań do podcastu"
-default-run = "schtomy-podcast"
+default-run = "schtomy-audio"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

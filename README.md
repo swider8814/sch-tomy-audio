@@ -1,4 +1,4 @@
-# sch-tomy-audio
+# SCh Tomy Audio
 
 Desktop tool (Windows, macOS) that prepares sermon recordings of
 "Społeczność Chrześcijańska Tomy" for the church podcast. User guide in
@@ -57,7 +57,7 @@ npm ci
 node scripts/fetch-ffmpeg.mjs              # pinned sidecars for this platform (Windows/macOS)
 node scripts/fetch-ffmpeg.mjs --from-path  # Linux/dev: copy ffmpeg from PATH
 cargo test -p podcast-core                 # needs ffmpeg/ffprobe (PATH or SCHTOMY_FFMPEG/SCHTOMY_FFPROBE)
-cargo test -p schtomy-podcast
+cargo test -p schtomy-audio
 npm run test:ui
 npx tauri dev                              # run the app
 npx tauri build --bundles nsis             # Windows installer (.exe, NSIS)
