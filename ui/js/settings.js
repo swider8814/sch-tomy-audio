@@ -1,7 +1,8 @@
 // Settings dialog.
 
-import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog } from "./util.js";
-import { app, setSettings, setPatterns, MEDIA_EXTENSIONS } from "./app.js";
+import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog, tauriOpener } from "./util.js";
+import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./app.js";
+import { checkForUpdate, openReleasePage } from "./update.js";
 import { formatTime } from "./format.js";
 
 const dlg = () => $("#settings");
@@ -28,16 +29,38 @@ const DEFAULTS = {
   concurrency: 2,
   artist: "Społeczność Chrześcijańska Tomy",
   album: "SCh Tomy podcast",
+  check_updates: true,
 };
 
 const field = (name) => form().elements.namedItem(name);
 
-export function openSettings() {
+export function openSettings(tab = "basic") {
   draft = structuredClone(app.settings ?? DEFAULTS);
   fill();
   renderPatterns();
   $("#settings-error").textContent = "";
+  $("#update-status").textContent = "";
+  showTab(tab);
   dlg().showModal();
+}
+
+const TABS = ["basic", "sound", "advanced", "keys", "about"];
+const AUTHOR_MAIL = "mailto:daniel.swiderski@proem.pl?subject=SCh%20Tomy%20Audio";
+
+function showTab(name) {
+  for (const t of TABS) {
+    const on = t === name;
+    const tab = $(`#tab-${t}`);
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    $(`#panel-${t}`).hidden = !on;
+  }
+}
+
+/** Shows the tab that holds `el` (e.g. a field with a validation error). */
+function showTabOf(el) {
+  const panel = el?.closest?.(".tab-panel");
+  if (panel) showTab(panel.id.replace("panel-", ""));
 }
 
 function fill() {
@@ -61,6 +84,8 @@ function fill() {
   field("artist").value = s.artist;
   field("album").value = s.album;
   field("concurrency").value = s.concurrency;
+  field("check_updates").checked = s.check_updates !== false;
+  $("#about-version").textContent = app.version;
 }
 
 function showPath(name) {
@@ -79,7 +104,9 @@ function num(name, { min, max, label }) {
   const v = Number(String(raw).replace(",", "."));
   if (raw === "" || !Number.isFinite(v) || v < min || v > max) {
     const f = (x) => String(x).replace(".", ",");
-    throw new Error(`${label}: wpisz liczbę od ${f(min)} do ${f(max)}.`);
+    const err = new Error(`${label}: wpisz liczbę od ${f(min)} do ${f(max)}.`);
+    err.field = field(name);
+    throw err;
   }
   return v;
 }
@@ -88,7 +115,11 @@ function collect() {
   const s = structuredClone(draft);
   const mode = form().querySelector("input[name=outmode]:checked")?.value;
   if (mode === "beside") s.output_dir = null;
-  else if (!s.output_dir) throw new Error("Wybierz folder na wyniki albo zaznacz „Obok oryginału”.");
+  else if (!s.output_dir) {
+    const err = new Error("Wybierz folder na wyniki albo zaznacz „Obok oryginału”.");
+    err.field = form().querySelector("[data-file=output_dir] [data-choose]");
+    throw err;
+  }
   s.gap_after_intro = num("gap_after_intro", { min: 0, max: 3, label: "Przerwa po intro" });
   s.gap_before_outro = num("gap_before_outro", { min: 0, max: 3, label: "Przerwa przed outro" });
   s.crossfade_ms = Math.round(num("crossfade_ms", { min: 0, max: 5000, label: "Przejście" }));
@@ -108,6 +139,7 @@ function collect() {
   s.artist = field("artist").value.trim() || DEFAULTS.artist;
   s.album = field("album").value.trim() || DEFAULTS.album;
   s.concurrency = Math.round(num("concurrency", { min: 1, max: 4, label: "Ile plików naraz" }));
+  s.check_updates = field("check_updates").checked;
   return s;
 }
 
@@ -194,7 +226,44 @@ function setup() {
       showPath(name);
     });
   }
+  for (const t of TABS) $(`#tab-${t}`).addEventListener("click", () => showTab(t));
+  $(".tabs", dlg()).addEventListener("keydown", (ev) => {
+    if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+    const cur = TABS.findIndex((t) => $(`#tab-${t}`).getAttribute("aria-selected") === "true");
+    const next = TABS[(cur + (ev.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+    showTab(next);
+    $(`#tab-${next}`).focus();
+    ev.preventDefault();
+  });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  $("#author-mail").addEventListener("click", () =>
+    tauriOpener()
+      .openUrl(AUTHOR_MAIL)
+      .catch(() => toast("Nie udało się otworzyć programu pocztowego. Adres: daniel.swiderski@proem.pl")),
+  );
+  $("#update-open").addEventListener("click", () => openReleasePage().catch(() => toast("Nie udało się otworzyć przeglądarki.")));
+  $("#update-check").addEventListener("click", async () => {
+    const status = $("#update-status");
+    const btn = $("#update-check");
+    btn.disabled = true;
+    status.textContent = "Sprawdzam...";
+    try {
+      const r = await checkForUpdate(app.version);
+      if (r.newer) {
+        status.replaceChildren(
+          `Jest nowa wersja: ${r.version}. `,
+          h("button", { type: "button", class: "small primary", onclick: () => openReleasePage(r.url).catch(() => {}) }, "Pobierz"),
+        );
+        setUpdate({ version: r.version, url: r.url });
+      } else {
+        status.textContent = `Masz najnowszą wersję (${app.version}).`;
+      }
+    } catch (e) {
+      status.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
   $("#settings-defaults").addEventListener("click", () => {
     draft = structuredClone(DEFAULTS);
     fill();
@@ -205,6 +274,8 @@ function setup() {
       s = collect();
     } catch (e) {
       $("#settings-error").textContent = e.message;
+      showTabOf(e.field);
+      e.field?.focus();
       return;
     }
     try {

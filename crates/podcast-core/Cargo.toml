@@ -2,7 +2,7 @@
 name = "podcast-core"
 version.workspace = true
 edition.workspace = true
-description = "Audio processing core of the SCh Tomy podcast tool"
+description = "Audio processing core of SCh Tomy Audio, the sermon podcast tool"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

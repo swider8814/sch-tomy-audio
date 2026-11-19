@@ -36,6 +36,8 @@ pub struct StateView {
     preview_tail: f64,
     /// Default folder for YouTube downloads (shown in the settings).
     default_youtube_dir: String,
+    /// Version of this build, compared with the latest GitHub release.
+    version: &'static str,
 }
 
 fn not_found() -> String {
@@ -90,6 +92,7 @@ pub fn get_state(state: St<'_>) -> StateView {
         preview_head: PREVIEW_HEAD_S,
         preview_tail: PREVIEW_TAIL_S,
         default_youtube_dir: state.default_youtube_dir.display().to_string(),
+        version: env!("CARGO_PKG_VERSION"),
     }
 }
 

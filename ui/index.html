@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SCh Tomy Podcast</title>
+    <title>SCh Tomy Audio</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -17,10 +17,20 @@
 
     <div id="banners" aria-live="polite"></div>
 
+    <div id="drop-overlay" hidden aria-hidden="true">
+      <div class="drop-overlay-box">
+        <div class="drop-overlay-card">
+          <p class="big">Upuść, żeby dodać do listy</p>
+          <p class="hint">Nagrania audio i wideo, foldery albo plik .txt z linkami do YouTube</p>
+        </div>
+      </div>
+    </div>
+
     <main>
       <section id="drop" class="dropzone" aria-label="Dodawanie plików">
-        <p class="big">Przeciągnij pliki tutaj</p>
-        <p class="hint">
+        <p class="big">Przeciągnij nagrania w dowolne miejsce okna</p>
+        <p class="hint drop-more">Przeciągnij kolejne nagrania w dowolne miejsce okna albo:</p>
+        <p class="hint drop-formats">
           Nagrania MP3, WAV, M4A, MP4, MOV, WEBM i inne. Możesz przeciągnąć kilka plików naraz albo cały folder.
         </p>
         <div class="drop-buttons">
@@ -30,6 +40,7 @@
       </section>
 
       <section id="list-section">
+        <div id="list-tools">
         <div class="list-toolbar">
           <span id="summary"></span>
           <span class="spacer"></span>
@@ -40,6 +51,8 @@
         <div id="overall" hidden>
           <div class="bar"><div id="overall-fill"></div></div>
           <span id="overall-text"></span>
+        </div>
+        <div id="filters" class="filters" role="group" aria-label="Pokaż pliki"></div>
         </div>
         <table id="jobs">
           <thead>
@@ -53,7 +66,21 @@
           </thead>
           <tbody id="job-rows"></tbody>
         </table>
-        <p id="empty" class="empty">Lista jest pusta. Dodaj nagrania, żeby zacząć.</p>
+        <p id="filter-empty" class="empty" hidden>Brak plików w tym widoku.</p>
+        <div id="empty" class="empty-guide">
+          <h2>Jak to działa</h2>
+          <ol>
+            <li><b>Dodaj nagrania.</b> Przeciągnij pliki w dowolne miejsce okna, kliknij „Wybierz pliki” albo „Pobierz z YouTube”.</li>
+            <li>
+              <b>Sprawdź początek i wpisz tytuł.</b> Aplikacja sama szuka początku kazania. Gdy ma tylko propozycję,
+              kliknij „Sprawdź początek”. Kaznodzieję i datę odczyta z nazwy pliku.
+            </li>
+            <li>
+              <b>Kliknij „Przetwórz wszystkie”.</b> Gotowe pliki MP3 pojawią się obok oryginałów albo w folderze wybranym w
+              Ustawieniach. Oryginały zostają bez zmian.
+            </li>
+          </ol>
+        </div>
       </section>
     </main>
 
@@ -62,17 +89,28 @@
       <form method="dialog" class="dialog-body" id="editor-form">
         <h2 id="ed-title">Cięcie nagrania</h2>
         <p class="hint" id="ed-info"></p>
+        <div class="ed-sermon-row">
+          <label>Tytuł kazania
+            <input id="ed-sermon" type="text" maxlength="200" placeholder="Wpisz tytuł kazania" autocomplete="off" />
+          </label>
+          <span class="hint" id="ed-suffix"></span>
+        </div>
 
         <div class="wave-panel">
           <div class="wave-head">
             <h3>Początek nagrania</h3>
             <span class="hint" id="ed-head-range"></span>
           </div>
-          <canvas id="wave-head" height="140" aria-label="Przebieg fali początku nagrania"></canvas>
+          <canvas id="wave-head" height="140" tabindex="0" aria-label="Przebieg fali początku nagrania"></canvas>
           <div class="wave-controls">
             <button type="button" data-play="head">▶ Odtwórz od kursora</button>
             <button type="button" data-stop>■ Zatrzymaj</button>
             <span class="cursor-label">Kursor: <b id="cursor-head">00:00,0</b></span>
+            <span class="zoom-buttons">
+              <button type="button" class="small" data-zoom="in" data-part="head" title="Przybliż (klawisz +)">Przybliż</button>
+              <button type="button" class="small" data-zoom="out" data-part="head" title="Oddal (klawisz -)">Oddal</button>
+              <button type="button" class="small" data-zoom="all" data-part="head">Całość</button>
+            </span>
             <span class="spacer"></span>
             <button type="button" class="primary" id="set-start">Ustaw start w miejscu kursora</button>
           </div>
@@ -83,17 +121,26 @@
             <h3>Koniec nagrania</h3>
             <span class="hint" id="ed-tail-range"></span>
           </div>
-          <canvas id="wave-tail" height="110" aria-label="Przebieg fali końca nagrania"></canvas>
+          <canvas id="wave-tail" height="110" tabindex="0" aria-label="Przebieg fali końca nagrania"></canvas>
           <div class="wave-controls">
             <button type="button" data-play="tail">▶ Odtwórz od kursora</button>
             <button type="button" data-stop>■ Zatrzymaj</button>
             <span class="cursor-label">Kursor: <b id="cursor-tail">00:00,0</b></span>
+            <span class="zoom-buttons">
+              <button type="button" class="small" data-zoom="in" data-part="tail" title="Przybliż (klawisz +)">Przybliż</button>
+              <button type="button" class="small" data-zoom="out" data-part="tail" title="Oddal (klawisz -)">Oddal</button>
+              <button type="button" class="small" data-zoom="all" data-part="tail">Całość</button>
+            </span>
             <span class="spacer"></span>
             <button type="button" id="set-end">Ustaw koniec w miejscu kursora</button>
           </div>
         </div>
 
-        <p class="hint">Kliknij w przebieg fali, żeby ustawić kursor. Spacja uruchamia i zatrzymuje odtwarzanie.</p>
+        <p class="hint">
+          Kliknij w przebieg fali, żeby ustawić kursor. Kółko myszy przybliża i oddala falę. Spacja odtwarza i
+          zatrzymuje, S ustawia start, E ustawia koniec. Wszystkie skróty znajdziesz w Ustawieniach, w zakładce
+          „Skróty klawiszowe”.
+        </p>
 
         <div class="marker-fields">
           <label>Start (mm:ss,d)
@@ -131,7 +178,8 @@
 
         <div class="dialog-buttons">
           <button type="button" id="ed-cancel">Anuluj</button>
-          <button type="button" class="primary" id="ed-save">Zapisz znaczniki</button>
+          <button type="button" id="ed-save">Zapisz i zamknij</button>
+          <button type="button" class="primary" id="ed-next" hidden title="Zapisuje zmiany i otwiera kolejny plik, który ma tylko propozycję startu albo nie ma tytułu">Zatwierdź i następny</button>
         </div>
       </form>
     </dialog>
@@ -162,134 +210,228 @@
       <form method="dialog" class="dialog-body" id="settings-form">
         <h2>Ustawienia</h2>
 
-        <fieldset>
-          <legend>Intro, outro i okładka</legend>
-          <div class="file-row" data-file="intro">
-            <span class="label">Intro</span>
-            <span class="path" data-path></span>
-            <button type="button" data-choose>Wybierz plik</button>
-            <button type="button" data-clear>Usuń</button>
-          </div>
-          <div class="file-row" data-file="outro">
-            <span class="label">Outro</span>
-            <span class="path" data-path></span>
-            <button type="button" data-choose>Wybierz plik</button>
-            <button type="button" data-clear>Usuń</button>
-          </div>
-          <div class="file-row" data-file="cover">
-            <span class="label">Okładka (JPG)</span>
-            <span class="path" data-path></span>
-            <button type="button" data-choose>Wybierz plik</button>
-            <button type="button" data-clear>Usuń</button>
-          </div>
-        </fieldset>
+        <div class="tabs" role="tablist" aria-label="Grupy ustawień">
+          <button type="button" role="tab" id="tab-basic" aria-controls="panel-basic" aria-selected="true">Podstawowe</button>
+          <button type="button" role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="false" tabindex="-1">Dźwięk</button>
+          <button type="button" role="tab" id="tab-advanced" aria-controls="panel-advanced" aria-selected="false" tabindex="-1">Zajawki i zaawansowane</button>
+          <button type="button" role="tab" id="tab-keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1">Skróty klawiszowe</button>
+          <button type="button" role="tab" id="tab-about" aria-controls="panel-about" aria-selected="false" tabindex="-1">O programie</button>
+        </div>
 
-        <fieldset>
-          <legend>Gdzie zapisać wyniki</legend>
-          <label class="inline"><input type="radio" name="outmode" value="beside" /> Obok oryginału</label>
-          <label class="inline"><input type="radio" name="outmode" value="folder" /> W wybranym folderze</label>
-          <div class="file-row" data-file="output_dir">
-            <span class="path" data-path></span>
-            <button type="button" data-choose>Wybierz folder</button>
-          </div>
-          <p class="hint">Gotowy plik dostaje nazwę z daty, tytułu i kaznodziei, np. 2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3. Oryginał nigdy nie jest nadpisywany.</p>
-        </fieldset>
+        <div class="tab-panel" id="panel-basic" role="tabpanel" aria-labelledby="tab-basic">
+          <fieldset>
+            <legend>Intro, outro i okładka</legend>
+            <div class="file-row" data-file="intro">
+              <span class="label">Intro</span>
+              <span class="path" data-path></span>
+              <button type="button" data-choose>Wybierz plik</button>
+              <button type="button" data-clear>Usuń</button>
+            </div>
+            <div class="file-row" data-file="outro">
+              <span class="label">Outro</span>
+              <span class="path" data-path></span>
+              <button type="button" data-choose>Wybierz plik</button>
+              <button type="button" data-clear>Usuń</button>
+            </div>
+            <div class="file-row" data-file="cover">
+              <span class="label">Okładka (JPG)</span>
+              <span class="path" data-path></span>
+              <button type="button" data-choose>Wybierz plik</button>
+              <button type="button" data-clear>Usuń</button>
+            </div>
+          </fieldset>
 
-        <fieldset>
-          <legend>Nagrania z YouTube</legend>
-          <div class="file-row" data-file="youtube_dir">
-            <span class="label">Zapisuj w</span>
-            <span class="path" data-path></span>
-            <button type="button" data-choose>Wybierz folder</button>
-            <button type="button" data-clear>Domyślny</button>
-          </div>
-          <p class="hint">Tu trafia dźwięk pobrany z YouTube (przed obróbką). Gotowe pliki podcastu zapisują się zgodnie z ustawieniem „Gdzie zapisać wyniki”.</p>
-        </fieldset>
+          <fieldset>
+            <legend>Gdzie zapisać gotowe pliki</legend>
+            <label class="inline"><input type="radio" name="outmode" value="beside" /> Obok oryginału</label>
+            <label class="inline"><input type="radio" name="outmode" value="folder" /> W wybranym folderze</label>
+            <div class="file-row" data-file="output_dir">
+              <span class="path" data-path></span>
+              <button type="button" data-choose>Wybierz folder</button>
+            </div>
+            <p class="hint">Gotowy plik dostaje nazwę z daty, tytułu i kaznodziei, np. 2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3. Oryginał nigdy nie jest nadpisywany.</p>
+          </fieldset>
 
-        <fieldset>
-          <legend>Przerwy i cisza</legend>
-          <div class="grid">
-            <label>Przerwa po intro (s)
-              <input name="gap_after_intro" type="number" min="0" max="3" step="0.1" />
-            </label>
-            <label>Przerwa przed outro (s)
-              <input name="gap_before_outro" type="number" min="0" max="3" step="0.1" />
-            </label>
-            <label>Przejście między częściami (ms)
-              <input name="crossfade_ms" type="number" min="0" max="5000" step="50" />
-            </label>
-          </div>
-          <label class="inline"><input name="trim_trailing" type="checkbox" /> Przycinaj ciszę na końcu nagrania (zostaje przerwa przed outro)</label>
-          <div class="grid">
-            <label>Próg ciszy (dB)
-              <input name="threshold_db" type="number" min="-90" max="-20" step="1" />
-            </label>
-            <label>Minimalna długość ciszy (s)
-              <input name="min_duration" type="number" min="0.1" max="30" step="0.1" />
-            </label>
-          </div>
-          <label class="inline"><input name="trim_leading" type="checkbox" /> Przycinaj ciszę na początku (zwykle niepotrzebne, bo początek ustala znacznik start)</label>
-        </fieldset>
+          <fieldset>
+            <legend>Nagrania z YouTube</legend>
+            <div class="file-row" data-file="youtube_dir">
+              <span class="label">Zapisuj w</span>
+              <span class="path" data-path></span>
+              <button type="button" data-choose>Wybierz folder</button>
+              <button type="button" data-clear>Domyślny</button>
+            </div>
+            <p class="hint">Tu trafia dźwięk pobrany z YouTube (przed obróbką). Gotowe pliki podcastu zapisują się tam, gdzie wskazuje ustawienie powyżej.</p>
+          </fieldset>
 
-        <fieldset>
-          <legend>Głośność i format</legend>
-          <div class="grid">
-            <label>Docelowa głośność (LUFS)
-              <input name="target_lufs" type="number" min="-36" max="-6" step="0.5" />
-            </label>
-            <label>Maksymalny szczyt (dBTP)
-              <input name="target_tp" type="number" min="-9" max="0" step="0.1" />
-            </label>
-            <label>Zakres dynamiki LRA (LU)
-              <input name="target_lra" type="number" min="1" max="50" step="1" />
-            </label>
-            <label>Jakość MP3 (kb/s)
-              <select name="bitrate_kbps">
-                <option value="96">96</option>
-                <option value="128">128</option>
-                <option value="160">160</option>
-                <option value="192">192</option>
-                <option value="256">256</option>
-                <option value="320">320</option>
-              </select>
-            </label>
-            <label>Kanały
-              <select name="channels">
-                <option value="2">Stereo</option>
-                <option value="1">Mono</option>
-              </select>
-            </label>
-          </div>
-        </fieldset>
+          <fieldset>
+            <legend>Tagi MP3</legend>
+            <div class="grid">
+              <label>Wykonawca
+                <input name="artist" type="text" maxlength="200" />
+              </label>
+              <label>Album
+                <input name="album" type="text" maxlength="200" />
+              </label>
+            </div>
+            <p class="hint">Tytuł i rok każdego odcinka wpisujesz na liście plików.</p>
+          </fieldset>
+        </div>
 
-        <fieldset>
-          <legend>Zajawki serii</legend>
-          <div class="grid">
-            <label>Próg pewności dopasowania (%)
-              <input name="pattern_threshold" type="number" min="20" max="99" step="1" />
-            </label>
-            <label>Szukaj w pierwszych (min)
-              <input name="search_window_min" type="number" min="1" max="15" step="1" />
-            </label>
-          </div>
-          <p class="hint">Poniżej progu dopasowanie jest tylko propozycją do sprawdzenia.</p>
-          <ul id="pattern-list" class="pattern-list"></ul>
-        </fieldset>
+        <div class="tab-panel" id="panel-sound" role="tabpanel" aria-labelledby="tab-sound" hidden>
+          <fieldset>
+            <legend>Przerwy między częściami</legend>
+            <div class="grid">
+              <label>Przerwa po intro
+                <span class="num"><input name="gap_after_intro" type="number" min="0" max="3" step="0.1" /><span class="unit">s</span></span>
+              </label>
+              <label>Przerwa przed outro
+                <span class="num"><input name="gap_before_outro" type="number" min="0" max="3" step="0.1" /><span class="unit">s</span></span>
+              </label>
+              <label>Przejście (crossfade)
+                <span class="num"><input name="crossfade_ms" type="number" min="0" max="5000" step="50" /><span class="unit">ms</span></span>
+              </label>
+            </div>
+            <p class="hint">Cisza od 0 do 3 s wstawiana po intro i przed outro (bez intro lub outro nie ma też przerwy). Przejście płynnie nakłada końcówkę jednej części na początek następnej, 0 to brak przejścia.</p>
+          </fieldset>
 
-        <fieldset>
-          <legend>Tagi i wydajność</legend>
-          <div class="grid">
-            <label>Wykonawca
-              <input name="artist" type="text" maxlength="200" />
-            </label>
-            <label>Album
-              <input name="album" type="text" maxlength="200" />
-            </label>
-            <label>Ile plików obrabiać naraz
-              <input name="concurrency" type="number" min="1" max="4" step="1" />
-            </label>
-          </div>
-        </fieldset>
+          <fieldset>
+            <legend>Cisza</legend>
+            <label class="inline"><input name="trim_trailing" type="checkbox" /> Przycinaj ciszę na końcu nagrania</label>
+            <div class="grid">
+              <label>Próg ciszy
+                <span class="num"><input name="threshold_db" type="number" min="-90" max="-20" step="1" /><span class="unit">dB</span></span>
+              </label>
+              <label>Minimalna długość ciszy
+                <span class="num"><input name="min_duration" type="number" min="0.1" max="30" step="0.1" /><span class="unit">s</span></span>
+              </label>
+            </div>
+            <p class="hint">Przycinana jest tylko cisza trwająca do samego końca nagrania. Przerwy w środku kazania zostają. Cichsze niż próg fragmenty liczą się jako cisza.</p>
+            <label class="inline"><input name="trim_leading" type="checkbox" /> Przycinaj ciszę na początku (zwykle niepotrzebne, bo początek ustala znacznik start)</label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Głośność</legend>
+            <div class="grid">
+              <label>Docelowa głośność
+                <span class="num"><input name="target_lufs" type="number" min="-36" max="-6" step="0.5" /><span class="unit">LUFS</span></span>
+              </label>
+              <label>Maksymalny szczyt
+                <span class="num"><input name="target_tp" type="number" min="-9" max="0" step="0.1" /><span class="unit">dBTP</span></span>
+              </label>
+              <label>Zakres dynamiki (LRA)
+                <span class="num"><input name="target_lra" type="number" min="1" max="50" step="1" /><span class="unit">LU</span></span>
+              </label>
+            </div>
+            <p class="hint">Standard podcastów to -16 LUFS i szczyt -1 dBTP. Zmieniaj tylko, jeśli wiesz, po co.</p>
+          </fieldset>
+
+          <fieldset>
+            <legend>Format MP3</legend>
+            <div class="grid">
+              <label>Jakość
+                <select name="bitrate_kbps">
+                  <option value="96">96 kb/s</option>
+                  <option value="128">128 kb/s</option>
+                  <option value="160">160 kb/s</option>
+                  <option value="192">192 kb/s (zalecane)</option>
+                  <option value="256">256 kb/s</option>
+                  <option value="320">320 kb/s</option>
+                </select>
+              </label>
+              <label>Kanały
+                <select name="channels">
+                  <option value="2">Stereo</option>
+                  <option value="1">Mono (mniejszy plik)</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="tab-panel" id="panel-advanced" role="tabpanel" aria-labelledby="tab-advanced" hidden>
+          <fieldset>
+            <legend>Zajawki serii</legend>
+            <div class="grid">
+              <label>Próg pewności dopasowania
+                <span class="num"><input name="pattern_threshold" type="number" min="20" max="99" step="1" /><span class="unit">%</span></span>
+              </label>
+              <label>Szukaj w pierwszych
+                <span class="num"><input name="search_window_min" type="number" min="1" max="15" step="1" /><span class="unit">min</span></span>
+              </label>
+            </div>
+            <p class="hint">Poniżej progu dopasowanie jest tylko propozycją do sprawdzenia. Zajawki i początku mowy aplikacja szuka tylko na początku nagrania.</p>
+            <ul id="pattern-list" class="pattern-list"></ul>
+          </fieldset>
+
+          <fieldset>
+            <legend>Wydajność</legend>
+            <div class="grid">
+              <label>Ile plików obrabiać naraz
+                <span class="num"><input name="concurrency" type="number" min="1" max="4" step="1" /><span class="unit">plików</span></span>
+              </label>
+            </div>
+            <p class="hint">Więcej plików naraz to szybsza obróbka całej listy, ale większe obciążenie komputera.</p>
+          </fieldset>
+        </div>
+
+        <div class="tab-panel" id="panel-keys" role="tabpanel" aria-labelledby="tab-keys" hidden>
+          <fieldset>
+            <legend>Okno cięcia</legend>
+            <table class="keys">
+              <tbody>
+                <tr><td><kbd>Spacja</kbd></td><td>Odtwórz od kursora albo zatrzymaj</td></tr>
+                <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Przesuń kursor o 0,1 sekundy</td></tr>
+                <tr><td><kbd>Shift</kbd> + <kbd>←</kbd> <kbd>→</kbd></td><td>Przesuń kursor o 1 sekundę</td></tr>
+                <tr><td><kbd>S</kbd></td><td>Ustaw start w miejscu kursora (górny przebieg)</td></tr>
+                <tr><td><kbd>E</kbd></td><td>Ustaw koniec w miejscu kursora (dolny przebieg)</td></tr>
+                <tr><td><kbd>+</kbd> <kbd>-</kbd></td><td>Przybliż albo oddal przebieg fali</td></tr>
+                <tr><td>Kółko myszy</td><td>Przybliż albo oddal wokół wskaźnika myszy</td></tr>
+                <tr><td><kbd>Shift</kbd> + kółko myszy</td><td>Przewiń przebieg w bok</td></tr>
+                <tr><td><kbd>Esc</kbd></td><td>Zamknij okno bez zapisywania</td></tr>
+              </tbody>
+            </table>
+            <p class="hint">Skróty nie działają, gdy piszesz w polu tekstowym (np. w tytule albo czasie startu). Kliknij w przebieg fali, żeby znów z nich korzystać.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Lista plików</legend>
+            <table class="keys">
+              <tbody>
+                <tr><td><kbd>Enter</kbd></td><td>W polu tytułu: przejdź do tytułu następnego pliku</td></tr>
+                <tr><td><kbd>Tab</kbd></td><td>Przejdź do następnego pola albo przycisku</td></tr>
+              </tbody>
+            </table>
+          </fieldset>
+        </div>
+
+        <div class="tab-panel" id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+          <fieldset>
+            <legend>SCh Tomy Audio</legend>
+            <p>Wersja <b id="about-version"></b></p>
+            <p class="hint">Przygotowanie nagrań kazań Społeczności Chrześcijańskiej Tomy do podcastu.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Autor</legend>
+            <p class="author"><b>Daniel Świderski</b><br />Specjalista ds. IT w Fundacji Proem</p>
+            <p>
+              Kontakt:
+              <button type="button" class="link" id="author-mail" title="Napisz e-mail">daniel.swiderski@proem.pl</button>
+            </p>
+            <p class="hint">Masz pytanie, problem albo pomysł na usprawnienie? Napisz. Przy problemie dołącz log (przycisk „Szczegóły” przy pliku).</p>
+          </fieldset>
+          <fieldset>
+            <legend>Aktualizacje</legend>
+            <label class="inline"><input name="check_updates" type="checkbox" /> Sprawdzaj przy uruchomieniu, czy jest nowa wersja</label>
+            <div class="update-row">
+              <button type="button" id="update-check">Sprawdź teraz</button>
+              <button type="button" id="update-open">Strona z wydaniami</button>
+              <span id="update-status" class="hint" role="status"></span>
+            </div>
+            <p class="hint">
+              Aplikacja pyta tylko GitHub o numer najnowszej wersji. Nie wysyła żadnych informacji o Tobie ani o Twoich plikach.
+              Nowej wersji nie instaluje sama: otwiera stronę wydania w przeglądarce, skąd pobierasz instalator.
+            </p>
+          </fieldset>
+        </div>
 
         <p id="settings-error" class="error-text" role="alert"></p>
         <div class="dialog-buttons">

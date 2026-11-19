@@ -1,4 +1,4 @@
-# PLAN: SCh Tomy podcast audio tool
+# PLAN: SCh Tomy Audio
 
 Desktop app that turns raw sermon recordings (MP3 or audio/video pulled from
 YouTube) into podcast-ready MP3 files: cut the series teaser at the start,
@@ -142,6 +142,42 @@ docs/threat-model.md
   with WebAudio, so every input format plays the same on both systems.
 * **ffmpeg hardening:** inputs are passed as absolute paths with
   `-protocol_whitelist file`, so crafted playlists cannot reach the network.
+* **Queue persistence (v0.1.3):** the job list is saved to `queue.json` in
+  the app data folder (every few seconds when changed and on exit) and
+  restored on start. Jobs that were processing come back as waiting,
+  interrupted YouTube downloads resume, files no longer on disk become an
+  error; analysis results are kept, so nothing is re-analysed needlessly.
+* **Keep awake (v0.1.3):** while anything is downloading, queued or
+  processing the system must not sleep (`SetThreadExecutionState` on
+  Windows, `caffeinate -i -w <pid>` on macOS). The display may still turn off.
+* **Review flow (v0.1.3):** "Do sprawdzenia" means a proposed start (VAD or
+  weak teaser match) on a file not processed yet; the editor offers
+  "Zatwierdź i następny", which saves and opens the next such file (or one
+  without a sermon title) in list order. Confirming a proposal turns it into
+  a manual marker. List rules live in `ui/js/logic.js` (DOM-free, tested in
+  `ui-tests/logic.test.mjs`).
+* **Editor zoom (v0.1.3):** only the view changes (mouse wheel, +/-
+  buttons and keys); the decoded preview stays the same, so zooming needs no
+  new ffmpeg call. Shortcuts: space, arrows (0.1 s, Shift 1 s), S, E, +, -.
+* **Update check (v0.1.3):** at the user's request (relaxes the original
+  "no network except YouTube" rule). At start (setting `check_updates`, on by
+  default) and on "Sprawdź teraz" the webview fetches the latest release from
+  the GitHub API (no own server needed; drafts and pre-releases are ignored by
+  that endpoint) and compares versions. A newer one shows a banner that opens
+  the release page; nothing is downloaded or installed by the app (an
+  in-app updater would need signed update bundles and is not worth it for
+  an unsigned app). Threat model T12.
+* **Name (v0.1.3):** the app is "SCh Tomy Audio" (was "SCh Tomy Podcast"),
+  like the repository. The bundle identifier `pl.schtomy.podcast-audio` is
+  unchanged on purpose: it names the data folder, so settings, patterns and
+  the job list carry over. Because the product name changed, Windows/macOS
+  install it next to the old app; the guide tells users to remove the old
+  one. The ID3 album "SCh Tomy podcast" is the podcast's name and stays.
+* **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
+  (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
+  search window, concurrency), Skróty klawiszowe (read-only list: shortcuts
+are few and conventional, remapping would only make support harder), O
+programie (version, update check). A validation error switches to its tab.
 
 ## Steps
 

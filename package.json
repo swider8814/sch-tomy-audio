@@ -1,9 +1,9 @@
 {
-  "name": "schtomy-podcast",
+  "name": "schtomy-audio",
   "private": true,
   "type": "module",
-  "version": "0.1.2",
-  "description": "SCh Tomy podcast audio tool (Tauri app)",
+  "version": "0.1.3",
+  "description": "SCh Tomy Audio: prepares sermon recordings for the church podcast (Tauri app)",
   "scripts": {
     "tauri": "tauri",
     "test:ui": "node --test \"ui-tests/*.test.mjs\"",

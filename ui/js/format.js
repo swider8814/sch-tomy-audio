@@ -62,22 +62,33 @@ export function maMaja(n) {
   return plikow(n) === "pliki" ? "mają" : "ma";
 }
 
-/** Text of the start marker source shown in the list. */
+/** Short label of the start marker source shown in the list, with a longer explanation for the tooltip. */
 export function startSourceLabel(job) {
+  const name = job.teaser?.name ?? "";
+  const conf = percent(job.teaser?.confidence);
   switch (job.startSource) {
     case "manual":
-      return { text: "ręczny", cls: "manual" };
+      return { text: "ręczny", cls: "manual", title: "Start ustawiony ręcznie w edytorze cięcia." };
     case "pattern":
-      return { text: `wzorzec zajawki: ${job.teaser?.name ?? ""} (${percent(job.teaser?.confidence)})`, cls: "pattern" };
+      return {
+        text: `wzorzec: ${name}`,
+        cls: "pattern",
+        title: `Znaleziono zajawkę „${name}” (pewność ${conf}). Start ustawiony zaraz po niej.`,
+      };
     case "patternProposal":
       return {
-        text: `propozycja (wzorzec ${job.teaser?.name ?? ""}, ${percent(job.teaser?.confidence)}), sprawdź`,
+        text: "propozycja, sprawdź",
         cls: "proposal",
+        title: `Zajawka „${name}” pasuje tylko w ${conf}. Sprawdź początek w edytorze cięcia.`,
       };
     case "vadProposal":
-      return { text: "propozycja VAD (początek mowy), sprawdź", cls: "proposal" };
+      return {
+        text: "propozycja, sprawdź",
+        cls: "proposal",
+        title: "Początek mowy wykryty automatycznie (VAD). Sprawdź go odsłuchem, bo śpiew może zmylić wykrywanie.",
+      };
     default:
-      return { text: "brak (bez cięcia początku)", cls: "none" };
+      return { text: "bez cięcia", cls: "none", title: "Brak znacznika startu: nagranie zostanie użyte od początku." };
   }
 }
 

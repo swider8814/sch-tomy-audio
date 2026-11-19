@@ -48,13 +48,27 @@ On Linux the app needs `libwebkit2gtk-4.1-dev`; Linux is only a dev platform.
   `INSTRUKCJA.md` is in Polish.
 * Originals are never overwritten. Output files are never overwritten either
   (a `-2`, `-3` suffix is added).
-* No telemetry, no network access (the only exception is the YouTube
-  download in `youtube.rs`, started explicitly by the user).
+* No telemetry, no network access. Two exceptions only: the YouTube
+  download in `youtube.rs`, started explicitly by the user, and the update
+  check in `ui/js/update.js` (one GET of the latest release from the GitHub
+  API, can be turned off in the settings; it never downloads or installs
+  anything, it only opens the releases page in the browser).
 * ffmpeg/ffprobe/yt-dlp are always invoked with an argument list
   (`std::process::Command`), never through a shell; ffmpeg inputs are
   absolute paths with `-protocol_whitelist file`; yt-dlp gets only a
   validated canonical YouTube URL after `--` and `--ignore-config`.
 * Every change in audio processing comes with a test.
+
+## Releases
+
+The owner creates each release in the GitHub UI (tag pushes are not
+available to agents). With every release give the owner, ready to paste:
+
+* the tag, e.g. `v0.1.3` (target `main`),
+* the title `SCh Tomy Audio v0.1.3`,
+* release notes in Polish for non-technical users (what is new, fixes,
+  which installer to download, known problems), following the UI text
+  rules above (no em/en dashes or middle dots as separators, "Ty" form).
 
 ## Review guidelines
 

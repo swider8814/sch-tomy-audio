@@ -3,6 +3,7 @@
 
 mod commands;
 mod jobs;
+mod keep_awake;
 mod state;
 
 use state::AppState;
@@ -74,5 +75,54 @@ mod capability_tests {
         assert!(perms.contains(&"core:window:allow-destroy"), "{perms:?}");
         let ui = include_str!("../../ui/js/app.js");
         assert!(ui.contains("onCloseRequested"));
+    }
+
+    /// Opening links is allowed only for this project's releases page and an
+    /// e-mail to the author, and
+    /// the only remote host the webview may contact is the GitHub API.
+    #[test]
+    fn links_and_network_are_narrow() {
+        let caps: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let open: Vec<&serde_json::Value> = caps["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["identifier"] == "opener:allow-open-url")
+            .collect();
+        assert_eq!(open.len(), 1);
+        let urls: Vec<&str> = open[0]["allow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["url"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            urls,
+            [
+                "https://github.com/swider8814/sch-tomy-audio/releases*",
+                "mailto:daniel.swiderski@proem.pl*"
+            ]
+        );
+        assert!(!caps["permissions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p == "opener:default" || p == "opener:allow-open-url"));
+
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let csp = conf["app"]["security"]["csp"].as_str().unwrap();
+        let connect = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with("connect-src"))
+            .unwrap();
+        let remote: Vec<&str> = connect
+            .split_whitespace()
+            .filter(|s| s.starts_with("https:") || s.starts_with("http:"))
+            .filter(|s| *s != "http://ipc.localhost")
+            .collect();
+        assert_eq!(remote, ["https://api.github.com"]);
     }
 }

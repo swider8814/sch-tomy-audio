@@ -1,4 +1,8 @@
-# sch-tomy-audio
+# SCh Tomy Audio
+
+> **Po polsku:** aplikację pobierzesz z zakładki
+> [Releases](https://github.com/swider8814/sch-tomy-audio/releases), a
+> instrukcję obsługi znajdziesz w [INSTRUKCJA.md](INSTRUKCJA.md).
 
 Desktop tool (Windows, macOS) that prepares sermon recordings of
 "Społeczność Chrześcijańska Tomy" for the church podcast. User guide in
@@ -57,7 +61,7 @@ npm ci
 node scripts/fetch-ffmpeg.mjs              # pinned sidecars for this platform (Windows/macOS)
 node scripts/fetch-ffmpeg.mjs --from-path  # Linux/dev: copy ffmpeg from PATH
 cargo test -p podcast-core                 # needs ffmpeg/ffprobe (PATH or SCHTOMY_FFMPEG/SCHTOMY_FFPROBE)
-cargo test -p schtomy-podcast
+cargo test -p schtomy-audio
 npm run test:ui
 npx tauri dev                              # run the app
 npx tauri build --bundles nsis             # Windows installer (.exe, NSIS)
@@ -104,5 +108,10 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Privacy
 
-No telemetry. The only network access is the YouTube download started by
-the user. Everything else runs locally.
+No telemetry. Network access happens only in two places: the YouTube
+download started by the user, and the update check (one request to
+`api.github.com/repos/swider8814/sch-tomy-audio/releases/latest` at start,
+which can be turned off in Ustawienia, O programie). Nothing about the user
+or their files is sent, and updates are never downloaded or installed by the
+app: it only opens the release page in the browser. Everything else runs
+locally.

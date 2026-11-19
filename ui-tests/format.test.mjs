@@ -54,8 +54,12 @@ test("start source labels avoid long dashes", () => {
     { startSource: "none" },
   ];
   for (const j of jobs) {
-    const { text } = startSourceLabel(j);
+    const { text, title } = startSourceLabel(j);
     assert.ok(!/[—–·]/.test(text), text);
+    assert.ok(!/[—–·]/.test(title), title);
+    assert.ok(text.length <= 30, text);
   }
-  assert.match(startSourceLabel(jobs[1]).text, /91%/);
+  assert.match(startSourceLabel(jobs[1]).text, /Łaska/);
+  assert.match(startSourceLabel(jobs[1]).title, /91%/);
+  assert.match(startSourceLabel(jobs[2]).title, /45%/);
 });

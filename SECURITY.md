@@ -47,5 +47,7 @@ When reviewing changes, check in particular:
    are committed and CI uses `--locked` / `npm ci`.
 6. **Network.** No network access except the YouTube download started by
    the user (`youtube.rs`: link validated to a canonical video URL, passed
-   after `--`, `--ignore-config`, fixed output folder and name). No
-   telemetry, no update checks.
+   after `--`, `--ignore-config`, fixed output folder and name) and the
+   update check (`ui/js/update.js`: one GET to the GitHub API, CSP
+   `connect-src` allows only `https://api.github.com`, the opener capability
+   only this repository's releases page). No telemetry, no self-update.

@@ -101,7 +101,7 @@ jobs:
       - name: Clippy (whole workspace, including the Tauri app)
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: App unit tests
-        run: cargo test -p schtomy-podcast --locked
+        run: cargo test -p schtomy-audio --locked
 
   build:
     name: Build (${{ matrix.name }})
@@ -157,14 +157,14 @@ jobs:
           mkdir -p dist
           bundle="target/${{ matrix.target }}/release/bundle"
           if [ "${{ matrix.bundles }}" = "nsis" ]; then
-            cp "$bundle"/nsis/*.exe "dist/SChTomyPodcast-${version}-${{ matrix.artifact }}-setup.exe"
+            cp "$bundle"/nsis/*.exe "dist/SChTomyAudio-${version}-${{ matrix.artifact }}-setup.exe"
           else
-            cp "$bundle"/dmg/*.dmg "dist/SChTomyPodcast-${version}-${{ matrix.artifact }}.dmg"
+            cp "$bundle"/dmg/*.dmg "dist/SChTomyAudio-${version}-${{ matrix.artifact }}.dmg"
           fi
           ls -la dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: SChTomyPodcast-${{ matrix.artifact }}
+          name: SChTomyAudio-${{ matrix.artifact }}
           path: dist/*
           if-no-files-found: error
           retention-days: 14
@@ -193,6 +193,6 @@ jobs:
           else
             gh release create "$TAG" dist/* \
               --repo "$GITHUB_REPOSITORY" \
-              --title "SCh Tomy Podcast $TAG" \
+              --title "SCh Tomy Audio $TAG" \
               --notes "Instalatory dla Windows i macOS. Instrukcja instalacji (także jak otworzyć niepodpisaną aplikację): INSTRUKCJA.md w repozytorium."
           fi

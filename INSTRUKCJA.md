@@ -1,4 +1,4 @@
-# SCh Tomy Podcast: instrukcja
+# SCh Tomy Audio: instrukcja
 
 Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego pliku:
 
@@ -10,17 +10,22 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 
 Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i kaznodziei z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
-Aplikacja działa bez internetu i niczego nie wysyła. Wyjątek: pobieranie nagrania z YouTube, gdy sam wkleisz link.
+Aplikacja działa bez internetu i niczego o Tobie nie wysyła. Internetu używa tylko w dwóch sytuacjach: przy pobieraniu nagrania z YouTube, gdy sam wkleisz link, oraz przy sprawdzaniu, czy jest nowa wersja aplikacji (patrz punkt 10).
 
 ## 1. Pobranie
 
 1. Wejdź na stronę repozytorium na GitHubie i kliknij **Releases** (po prawej stronie).
 2. Przy najnowszej wersji rozwiń **Assets** i pobierz plik dla swojego komputera:
-   * Windows: `SChTomyPodcast-...-windows-x64-setup.exe`
-   * Mac z procesorem Apple (M1, M2, M3, M4): `SChTomyPodcast-...-macos-apple-silicon.dmg`
-   * Mac z procesorem Intel: `SChTomyPodcast-...-macos-intel.dmg`
+   * Windows: `SChTomyAudio-...-windows-x64-setup.exe`
+   * Mac z procesorem Apple (M1, M2, M3, M4): `SChTomyAudio-...-macos-apple-silicon.dmg`
+   * Mac z procesorem Intel: `SChTomyAudio-...-macos-intel.dmg`
 
 Nie wiesz, jaki masz Mac? Kliknij jabłko w lewym górnym rogu, potem **Ten Mac**. Jeśli przy „Układ” widzisz „Apple M...”, wybierz wersję Apple Silicon. Jeśli przy „Procesor” widzisz „Intel”, wybierz wersję Intel.
+
+**Zmiana nazwy w wersji 0.1.3.** Do wersji 0.1.2 aplikacja nazywała się „SCh Tomy Podcast”, od wersji 0.1.3 nazywa się „SCh Tomy Audio”. Nowa wersja instaluje się jako osobna aplikacja, więc starą odinstaluj. Ustawienia, intro, outro, zapisane zajawki i lista plików zostaną zachowane.
+
+* **Windows:** otwórz **Ustawienia**, potem **Aplikacje**, znajdź **SCh Tomy Podcast** i kliknij **Odinstaluj**. Nie zaznaczaj usuwania danych aplikacji, jeśli instalator o to zapyta.
+* **Mac:** w folderze **Aplikacje** przeciągnij **SCh Tomy Podcast** do Kosza.
 
 ## 2. Instalacja na Windows
 
@@ -28,16 +33,16 @@ Nie wiesz, jaki masz Mac? Kliknij jabłko w lewym górnym rogu, potem **Ten Mac*
 2. Pojawi się niebieskie okno „System Windows ochronił ten komputer”. To normalne, bo aplikacja nie ma płatnego podpisu cyfrowego.
 3. Kliknij **Więcej informacji**, a potem **Uruchom mimo to**.
 4. Przejdź przez instalator (nie potrzebujesz uprawnień administratora).
-5. Uruchom aplikację z menu Start: **SCh Tomy Podcast**.
+5. Uruchom aplikację z menu Start: **SCh Tomy Audio**.
 
 ## 3. Instalacja na macOS
 
 1. Kliknij dwukrotnie pobrany plik `.dmg`.
-2. Przeciągnij ikonę **SCh Tomy Podcast** do folderu **Aplikacje**.
-3. Otwórz folder Aplikacje i kliknij dwukrotnie **SCh Tomy Podcast**.
+2. Przeciągnij ikonę **SCh Tomy Audio** do folderu **Aplikacje**.
+3. Otwórz folder Aplikacje i kliknij dwukrotnie **SCh Tomy Audio**.
 4. Pojawi się komunikat, że Apple nie może sprawdzić aplikacji. Kliknij **Gotowe** (albo **OK**). To normalne, bo aplikacja nie ma płatnego podpisu Apple.
 5. Otwórz **Ustawienia systemowe**, wejdź w **Prywatność i ochrona** i przewiń w dół do sekcji **Ochrona**.
-6. Przy informacji o zablokowanej aplikacji „SCh Tomy Podcast” kliknij **Otwórz mimo to** i potwierdź hasłem komputera.
+6. Przy informacji o zablokowanej aplikacji „SCh Tomy Audio” kliknij **Otwórz mimo to** i potwierdź hasłem komputera.
 7. W kolejnym okienku kliknij **Otwórz mimo to**. Od teraz aplikacja otwiera się normalnie.
 
 Na starszym macOS (13 Ventura i wcześniejsze) wystarczy: kliknij ikonę aplikacji prawym przyciskiem (albo z klawiszem Control), wybierz **Otwórz**, a potem jeszcze raz **Otwórz**.
@@ -45,37 +50,43 @@ Na starszym macOS (13 Ventura i wcześniejsze) wystarczy: kliknij ikonę aplikac
 Jeśli macOS pisze, że aplikacja „jest uszkodzona i nie można jej otworzyć”, otwórz program **Terminal** (Aplikacje, Narzędzia), wklej poniższą linię i naciśnij Enter, a potem otwórz aplikację ponownie:
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/SCh Tomy Podcast.app"
+xattr -dr com.apple.quarantine "/Applications/SCh Tomy Audio.app"
 ```
 
 ## 4. Pierwsze uruchomienie: ustawienia
 
-Kliknij **Ustawienia** w prawym górnym rogu.
+Kliknij **Ustawienia** w prawym górnym rogu. Ustawienia są podzielone na trzy zakładki: **Podstawowe**, **Dźwięk** oraz **Zajawki i zaawansowane**. Na początek wystarczy zakładka **Podstawowe**:
 
 * **Intro** i **Outro**: kliknij **Wybierz plik** i wskaż nagranie intro oraz outro. Bez nich aplikacja też działa (przytnie i wyrówna nagrania), ale na górze okna zobaczysz żółte przypomnienie.
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
-* **Gdzie zapisać wyniki**: „Obok oryginału” albo wybrany folder.
+* **Gdzie zapisać gotowe pliki**: „Obok oryginału” albo wybrany folder.
 * **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
-* Pozostałe wartości są już dobrze ustawione. Nie musisz ich zmieniać.
+* **Tagi MP3**: wykonawca i album zapisywane w każdym pliku.
+* W zakładce **Dźwięk** są przerwy, cisza, głośność i format MP3, a w zakładce **Zajawki i zaawansowane** zapisane zajawki serii i liczba plików obrabianych naraz. Te wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 
 Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
 
 ## 5. Przygotowanie odcinków krok po kroku
 
-1. **Dodaj nagrania.** Przeciągnij pliki (albo cały folder) na pole „Przeciągnij pliki tutaj” albo kliknij **Wybierz pliki**. Możesz dodać wiele plików naraz.
+1. **Dodaj nagrania.** Przeciągnij pliki (albo cały folder) w dowolne miejsce okna aplikacji albo kliknij **Wybierz pliki**. Możesz dodać wiele plików naraz.
 2. **Poczekaj chwilę na analizę.** Aplikacja szuka początku kazania w każdym pliku. W kolumnie „Początek kazania” zobaczysz czas i jego źródło:
-   * **wzorzec zajawki** (zielone): znaleziono zapisaną zajawkę serii, start ustawiono zaraz po niej,
+   * **wzorzec: nazwa** (zielone): znaleziono zapisaną zajawkę serii, start ustawiono zaraz po niej,
    * **propozycja, sprawdź** (żółte): automatyczna podpowiedź, którą warto sprawdzić,
    * **ręczny** (niebieskie): ustawiony przez Ciebie,
-   * **brak**: początek nie zostanie przycięty.
-3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
-   * **Tytuł kazania**, np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto.
-   * **Kaznodzieja i data**, np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić.
+   * **bez cięcia**: początek nie zostanie przycięty.
 
-   Pod polami widzisz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
-4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Edytuj cięcie** (patrz punkt 6).
+   Gdy zatrzymasz kursor myszy nad etykietą, zobaczysz więcej szczegółów (np. pewność dopasowania zajawki).
+3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
+   * **Tytuł kazania** (większe pole), np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto. Klawisz **Enter** przenosi Cię do tytułu następnego pliku, więc tytuły możesz wpisywać jeden po drugim.
+   * **Kaznodzieja i data** (mniejsze pole pod spodem), np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić.
+
+   Gdy zatrzymasz kursor myszy nad małym znakiem **i** obok, zobaczysz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
+4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Sprawdź początek** (patrz punkt 6). W oknie cięcia przycisk **Zatwierdź i następny** zapisuje zmiany i od razu otwiera kolejny plik do sprawdzenia.
+   Nad listą są filtry: **Wszystkie**, **Do sprawdzenia**, **Bez tytułu**, **Błędy** i **Gotowe**. Liczba w nawiasie mówi, ile plików pasuje. Kliknij filtr, żeby zobaczyć tylko te pliki.
 5. Kliknij **Przetwórz wszystkie**. Postęp widać przy każdym pliku i nad listą. Możesz w każdej chwili kliknąć **Anuluj obróbkę**.
 6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
+
+Lista plików jest zapamiętywana: po zamknięciu i ponownym otwarciu aplikacji pliki wracają na listę (pliki przerwane w trakcie obróbki czekają na ponowne **Przetwórz wszystkie**, a przerwane pobieranie z YouTube wznowi się samo). Podczas obróbki i pobierania aplikacja nie pozwala komputerowi zasnąć.
 
 Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,5 LU. Plik jest zapisany, ale warto go odsłuchać.
 
@@ -88,9 +99,9 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 **Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.
 
-To jedyne miejsce, w którym aplikacja łączy się z internetem, i tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
+Z YouTube aplikacja łączy się tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
 
-## 6. Ustawianie początku i końca (Edytuj cięcie)
+## 6. Ustawianie początku i końca (Sprawdź początek / Edytuj cięcie)
 
 Okno pokazuje przebieg dźwięku pierwszych 3 minut nagrania (dłużej, jeśli propozycja startu wypada później) i ostatnich 2 minut.
 
@@ -99,7 +110,18 @@ Okno pokazuje przebieg dźwięku pierwszych 3 minut nagrania (dłużej, jeśli p
 3. Gdy kursor jest tam, gdzie zaczyna się kazanie, kliknij **Ustaw start w miejscu kursora** (zielona linia „start”).
 4. Jeśli na końcu jest coś do wycięcia (na przykład plansza z muzyką), ustaw kursor w dolnym przebiegu i kliknij **Ustaw koniec w miejscu kursora**.
 5. Czas możesz też wpisać ręcznie w polach **Start** i **Koniec** w formacie minuty:sekundy,dziesiąte, na przykład `01:23,5`.
-6. Kliknij **Zapisz znaczniki**.
+6. Na górze okna możesz od razu wpisać albo poprawić **Tytuł kazania**.
+7. Kliknij **Zatwierdź i następny**, żeby zapisać i przejść do kolejnego pliku, który ma tylko propozycję startu albo nie ma tytułu. Gdy takich plików już nie ma, kliknij **Zapisz i zamknij**.
+
+**Powiększanie.** Kółko myszy nad przebiegiem fali przybliża i oddala widok wokół wskaźnika myszy (z klawiszem Shift przewija w bok). Możesz też użyć przycisków **Przybliż**, **Oddal** i **Całość**.
+
+**Skróty klawiszowe** (gdy nie piszesz w polu tekstowym):
+
+* **spacja**: odtwórz od kursora albo zatrzymaj,
+* **strzałka w lewo / w prawo**: przesuń kursor o 0,1 sekundy (z klawiszem Shift o 1 sekundę),
+* **S**: ustaw start w miejscu kursora,
+* **E**: ustaw koniec w miejscu kursora dolnego przebiegu,
+* **+** i **-**: przybliż i oddal.
 
 Żółta przerywana linia „VAD” to miejsce, w którym aplikacja usłyszała początek dłuższej mowy. Muzyka ze śpiewem może ją zmylić, więc zawsze to odsłuchaj.
 
@@ -107,7 +129,7 @@ Okno pokazuje przebieg dźwięku pierwszych 3 minut nagrania (dłużej, jeśli p
 
 Odcinki jednej serii zwykle zaczynają się tą samą zajawką. Wystarczy raz ją zapisać, a aplikacja sama znajdzie ją w kolejnych plikach.
 
-1. Otwórz **Edytuj cięcie** przy pierwszym odcinku serii.
+1. Otwórz okno cięcia (**Edytuj cięcie** albo **Sprawdź początek**) przy pierwszym odcinku serii.
 2. Ustaw **start** dokładnie tam, gdzie kończy się zajawka i zaczyna kazanie.
 3. Rozwiń **Zapisz zajawkę serii jako wzorzec**.
 4. Wpisz nazwę, na przykład nazwę serii kazań. Pola **Od** i **Do** są już wypełnione (od początku nagrania do znacznika start). Popraw je, jeśli zajawka nie zaczyna się od pierwszej sekundy.
@@ -115,14 +137,14 @@ Odcinki jednej serii zwykle zaczynają się tą samą zajawką. Wystarczy raz j�
 
 Pozostałe pliki na liście zostaną od razu sprawdzone ponownie. Przy znalezionej zajawce zobaczysz zieloną etykietę z nazwą wzorca i pewnością dopasowania (np. 92%). Gdy pewność jest niższa niż próg z ustawień (domyślnie 60%), start jest tylko propozycją do sprawdzenia.
 
-Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, w sekcji „Zajawki serii”.
+Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, w zakładce „Zajawki i zaawansowane”.
 
 ## 8. Przerwy i cisza (dla ciekawych)
 
 * Po intro zawsze jest 1 sekunda ciszy, a potem od razu kazanie.
 * Jeśli na końcu nagrania jest cisza (na przykład pusta plansza w filmie z YouTube), zostaje z niej 1 sekunda przed outro. Jeśli ciszy nie ma, aplikacja dodaje 1 sekundę.
 * Krótkie pauzy w środku kazania nigdy nie są wycinane.
-* Długości przerw (od 0 do 3 sekund) i czułość wykrywania ciszy zmienisz w Ustawieniach.
+* Długości przerw (od 0 do 3 sekund) i czułość wykrywania ciszy zmienisz w Ustawieniach, w zakładce „Dźwięk”.
 
 ## 9. Gdy coś pójdzie nie tak
 
@@ -131,3 +153,10 @@ Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, 
 * „Nie udało się odczytać pliku”: sprawdź, czy to na pewno nagranie audio albo wideo i czy plik otwiera się w innym odtwarzaczu.
 * „Nie udało się zapisać wyniku”: sprawdź, czy folder wyjściowy istnieje i czy na dysku jest wolne miejsce.
 * Jeśli zamkniesz aplikację w trakcie obróbki, niedokończone pliki zostaną usunięte. Oryginały zostają nietknięte.
+* Kontakt z autorem aplikacji (Daniel Świderski, daniel.swiderski@proem.pl) znajdziesz w **Ustawieniach**, w zakładce **O programie**. Przy zgłaszaniu problemu podaj numer wersji z tej zakładki i dołącz log.
+
+## 10. Nowa wersja aplikacji
+
+Przy uruchomieniu aplikacja sprawdza na GitHubie, czy jest nowsza wersja. Jeśli jest, na górze okna pojawi się niebieski pasek „Jest nowa wersja aplikacji”. Kliknij **Pobierz nową wersję**: w przeglądarce otworzy się strona wydania, skąd pobierasz instalator tak samo jak za pierwszym razem (punkt 1). Twoje ustawienia, wzorce zajawek i lista plików zostaną zachowane.
+
+Numer Twojej wersji, przycisk **Sprawdź teraz** i wyłącznik automatycznego sprawdzania znajdziesz w **Ustawieniach**, w zakładce **O programie**. Aplikacja sama niczego nie pobiera ani nie instaluje.
