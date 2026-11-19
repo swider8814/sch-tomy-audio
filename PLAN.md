@@ -142,6 +142,26 @@ docs/threat-model.md
   with WebAudio, so every input format plays the same on both systems.
 * **ffmpeg hardening:** inputs are passed as absolute paths with
   `-protocol_whitelist file`, so crafted playlists cannot reach the network.
+* **Queue persistence (v0.1.3):** the job list is saved to `queue.json` in
+  the app data folder (every few seconds when changed and on exit) and
+  restored on start. Jobs that were processing come back as waiting,
+  interrupted YouTube downloads resume, files no longer on disk become an
+  error; analysis results are kept, so nothing is re-analysed needlessly.
+* **Keep awake (v0.1.3):** while anything is downloading, queued or
+  processing the system must not sleep (`SetThreadExecutionState` on
+  Windows, `caffeinate -i -w <pid>` on macOS). The display may still turn off.
+* **Review flow (v0.1.3):** "Do sprawdzenia" means a proposed start (VAD or
+  weak teaser match) on a file not processed yet; the editor offers
+  "Zatwierdź i następny", which saves and opens the next such file (or one
+  without a sermon title) in list order. Confirming a proposal turns it into
+  a manual marker. List rules live in `ui/js/logic.js` (DOM-free, tested in
+  `ui-tests/logic.test.mjs`).
+* **Editor zoom (v0.1.3):** only the view changes (mouse wheel, +/-
+  buttons and keys); the decoded preview stays the same, so zooming needs no
+  new ffmpeg call. Shortcuts: space, arrows (0.1 s, Shift 1 s), S, E, +, -.
+* **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
+  (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
+  search window, concurrency). A validation error switches to its tab.
 
 ## Steps
 

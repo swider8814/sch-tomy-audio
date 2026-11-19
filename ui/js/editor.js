@@ -1,9 +1,11 @@
 // Cut editor: waveform of the first ~3 minutes and the last ~2 minutes,
-// playback from a clicked position, start/end markers, saving a teaser pattern.
+// playback from a clicked position, start/end markers, zoom, keyboard
+// shortcuts, saving a teaser pattern and "confirm and go to the next file".
 
 import { formatTime, parseTime, percent } from "./format.js";
 import { $, $$, h, invoke, toast, errorText } from "./util.js";
 import { app, getJob, setPatterns } from "./app.js";
+import { gridSteps, needsReview, nextToReview, zoomView } from "./logic.js";
 
 const dlg = () => $("#editor");
 
@@ -14,8 +16,8 @@ const ed = {
   end: null,
   ctx: null,
   parts: {
-    head: { buffer: null, offset: 0, length: 0, cursor: 0, peaks: null, error: null, canvas: "#wave-head" },
-    tail: { buffer: null, offset: 0, length: 0, cursor: 0, peaks: null, error: null, canvas: "#wave-tail" },
+    head: { buffer: null, offset: 0, length: 0, viewStart: 0, viewLen: 0, cursor: 0, peaks: null, error: null, canvas: "#wave-head" },
+    tail: { buffer: null, offset: 0, length: 0, viewStart: 0, viewLen: 0, cursor: 0, peaks: null, error: null, canvas: "#wave-tail" },
   },
   playing: null, // { part, source, startedAt, from }
   lastPart: "head",
@@ -60,6 +62,8 @@ export async function openEditor(id) {
     p.buffer = null;
     p.peaks = null;
     p.error = null;
+    p.viewStart = p.offset;
+    p.viewLen = p.length;
   }
 
   $("#ed-title").textContent = job.fileName;
@@ -71,9 +75,12 @@ export async function openEditor(id) {
   $("#pat-name").value = job.teaser?.name ?? "";
   $("#pat-from").value = formatTime(0);
   $("#pat-to").value = formatTime(job.start ?? null);
+  $("#ed-sermon").value = job.sermonTitle ?? "";
+  $("#ed-suffix").textContent = job.titleSuffix ? `Dalej w tytule: ${job.titleSuffix}` : "";
   syncFields();
   renderSuggestions();
-  dlg().showModal();
+  renderNext();
+  if (!dlg().open) dlg().showModal();
   drawAll();
   await loadPreviews(id);
 }
@@ -99,15 +106,18 @@ async function loadPreviews(id) {
 
 // ---------------------------------------------------------------- drawing
 
-function computePeaks(buffer, columns) {
+/** Min/max per canvas column for the visible part (`from`, `len` in seconds of the buffer). */
+function computePeaks(buffer, columns, from, len) {
   const data = buffer.getChannelData(0);
-  const per = data.length / columns;
+  const rate = buffer.sampleRate;
+  const first = from * rate;
+  const per = (len * rate) / columns;
   const peaks = new Float32Array(columns * 2);
   for (let c = 0; c < columns; c++) {
     let min = 0;
     let max = 0;
-    const a = Math.floor(c * per);
-    const b = Math.min(data.length, Math.floor((c + 1) * per));
+    const a = Math.max(0, Math.floor(first + c * per));
+    const b = Math.min(data.length, Math.max(a + 1, Math.floor(first + (c + 1) * per)));
     for (let i = a; i < b; i++) {
       const v = data[i];
       if (v < min) min = v;
@@ -141,7 +151,7 @@ function draw(name) {
   const g = canvas.getContext("2d");
   g.fillStyle = "#0f2236";
   g.fillRect(0, 0, W, H);
-  const x = (t) => ((t - p.offset) / p.length) * W;
+  const x = (t) => ((t - p.viewStart) / p.viewLen) * W;
 
   // teaser region
   const t = ed.job?.teaser;
@@ -152,7 +162,7 @@ function draw(name) {
 
   // waveform
   if (p.buffer) {
-    if (!p.peaks) p.peaks = computePeaks(p.buffer, W);
+    if (!p.peaks) p.peaks = computePeaks(p.buffer, W, p.viewStart - p.offset, p.viewLen);
     g.fillStyle = "#7fb3e6";
     const mid = H / 2;
     for (let c = 0; c < W; c++) {
@@ -166,20 +176,28 @@ function draw(name) {
     g.fillText(p.error ?? "Wczytywanie podglądu...", 12 * dpr, H / 2);
   }
 
-  // time grid: ticks every 15 s (30 s for long previews), labels every 30/60 s
+  // time grid: tick and label spacing follow the zoom level
   g.fillStyle = "rgba(255,255,255,0.55)";
   g.font = `${10 * dpr}px system-ui, sans-serif`;
-  const tick = p.length > 300 ? 30 : 15;
-  const labelEvery = p.length > 300 ? 60 : 30;
-  const first = Math.ceil(p.offset / tick) * tick;
-  for (let s = first; s <= p.offset + p.length; s += tick) {
-    const xx = Math.round(x(s));
+  const { tick, label } = gridSteps(p.viewLen, W / dpr);
+  const viewEnd = p.viewStart + p.viewLen;
+  for (let k = Math.ceil(p.viewStart / tick - 1e-9); k * tick <= viewEnd + 1e-9; k++) {
+    const sec = k * tick;
+    const xx = Math.round(x(sec));
     g.fillRect(xx, H - 6 * dpr, 1, 6 * dpr);
-    if (s % labelEvery === 0) g.fillText(formatTime(s).replace(/,\d$/, ""), xx + 3 * dpr, H - 8 * dpr);
+    const ratio = sec / label;
+    if (Math.abs(ratio - Math.round(ratio)) < 1e-6) {
+      const text = label < 1 ? formatTime(sec) : formatTime(sec).replace(/,\d$/, "");
+      g.fillText(text, xx + 3 * dpr, H - 8 * dpr);
+    }
+  }
+  if (p.viewLen < p.length - 0.05) {
+    g.fillStyle = "rgba(255,255,255,0.75)";
+    g.fillText(`Powiększenie ${Math.round(p.length / p.viewLen)}x`, W - 110 * dpr, 13 * dpr);
   }
 
   const vline = (time, color, label, dashed) => {
-    if (time == null || time < p.offset || time > p.offset + p.length) return;
+    if (time == null || time < p.viewStart || time > p.viewStart + p.viewLen) return;
     const xx = Math.round(x(time));
     g.save();
     g.strokeStyle = color;
@@ -202,6 +220,33 @@ function draw(name) {
   vline(ed.end, "#ff6b6b", "koniec");
   vline(p.cursor, "#ffffff", null, true);
   if (ed.playing?.part === name) vline(playPosition(), "#ffe066", null);
+}
+
+// ------------------------------------------------------------------- zoom
+
+const MIN_VIEW_S = 2;
+
+/** Zooms part `name` by `factor` (<1 in, >1 out) keeping time `anchor` in place. */
+function zoom(name, factor, anchor) {
+  const p = ed.parts[name];
+  if (!p.length) return;
+  const v = zoomView({ offset: p.offset, length: p.length, start: p.viewStart, len: p.viewLen }, factor, anchor ?? p.cursor, MIN_VIEW_S);
+  setView(name, v.start, v.len);
+}
+
+function setView(name, start, len) {
+  const p = ed.parts[name];
+  p.viewLen = len;
+  p.viewStart = Math.min(Math.max(start, p.offset), p.offset + p.length - len);
+  p.peaks = null;
+  draw(name);
+}
+
+/** Scrolls the view so that time `t` is visible. */
+function reveal(name, t) {
+  const p = ed.parts[name];
+  if (t == null || (t >= p.viewStart && t <= p.viewStart + p.viewLen)) return;
+  setView(name, t - p.viewLen * 0.1, p.viewLen);
 }
 
 // --------------------------------------------------------------- playback
@@ -234,7 +279,9 @@ function play(name) {
   };
   const tick = () => {
     if (ed.playing !== playing) return;
-    draw(name);
+    const pos = playPosition();
+    if (pos > p.viewStart + p.viewLen) setView(name, pos, p.viewLen);
+    else draw(name);
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -344,20 +391,54 @@ async function restoreAuto() {
   }
 }
 
-async function save() {
+/** Saves markers (and the sermon title when changed). Returns true on success. */
+async function saveCurrent() {
   try {
     ed.start = readField("#ed-start");
     ed.end = readField("#ed-end");
   } catch (e) {
     $("#ed-error").textContent = e.message;
-    return;
+    return false;
   }
   try {
     await invoke("set_markers", { id: ed.id, start: ed.start, end: ed.end });
-    close();
+    const sermon = $("#ed-sermon").value.trim();
+    if (sermon !== (ed.job.sermonTitle ?? "").trim()) {
+      await invoke("set_title", { id: ed.id, sermon, suffix: getJob(ed.id)?.titleSuffix ?? ed.job.titleSuffix ?? "" });
+    }
+    return true;
   } catch (e) {
     $("#ed-error").textContent = errorText(e);
+    return false;
   }
+}
+
+async function save() {
+  if (await saveCurrent()) close();
+}
+
+function othersToReview() {
+  return app.order.filter((id) => id !== ed.id && needsReview(app.jobs.get(id)) && app.jobs.get(id).duration != null).length;
+}
+
+function renderNext() {
+  const left = othersToReview();
+  const btn = $("#ed-next");
+  btn.hidden = left === 0;
+  btn.textContent = `Zatwierdź i następny (${left})`;
+  $("#ed-save").classList.toggle("primary", left === 0);
+}
+
+async function saveAndNext() {
+  if (!(await saveCurrent())) return;
+  const next = nextToReview(app.order, app.jobs, ed.id);
+  if (next == null) {
+    close();
+    toast("Wszystkie pliki są sprawdzone.");
+    return;
+  }
+  stop();
+  await openEditor(next);
 }
 
 async function savePattern() {
@@ -398,32 +479,110 @@ function canvasTime(name, ev) {
   const p = ed.parts[name];
   const rect = $(p.canvas).getBoundingClientRect();
   const frac = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
-  return p.offset + frac * p.length;
+  return p.viewStart + frac * p.viewLen;
+}
+
+function moveCursor(name, delta) {
+  const p = ed.parts[name];
+  p.cursor = Math.min(p.offset + p.length, Math.max(p.offset, Math.round((p.cursor + delta) * 10) / 10));
+  ed.lastPart = name;
+  syncFields();
+  reveal(name, p.cursor);
+  if (ed.playing) play(name);
+  else draw(name);
+}
+
+function setStartAtCursor() {
+  ed.start = Math.round(ed.parts.head.cursor * 10) / 10;
+  $("#pat-to").value = formatTime(ed.start);
+  syncFields();
+  drawAll();
+}
+
+function setEndAtCursor() {
+  ed.end = Math.round(ed.parts.tail.cursor * 10) / 10;
+  syncFields();
+  drawAll();
+}
+
+/** Keyboard shortcuts; ignored while typing in a text field. */
+function onKey(ev) {
+  const t = ev.target;
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const part = ed.lastPart;
+  switch (ev.code) {
+    case "Space":
+      if (t instanceof HTMLButtonElement || t.tagName === "SUMMARY") return;
+      if (ed.playing) stop();
+      else play(part);
+      break;
+    case "ArrowLeft":
+      moveCursor(part, ev.shiftKey ? -1 : -0.1);
+      break;
+    case "ArrowRight":
+      moveCursor(part, ev.shiftKey ? 1 : 0.1);
+      break;
+    case "KeyS":
+      setStartAtCursor();
+      break;
+    case "KeyE":
+      setEndAtCursor();
+      break;
+    case "Equal":
+    case "NumpadAdd":
+      zoom(part, 0.5);
+      break;
+    case "Minus":
+    case "NumpadSubtract":
+      zoom(part, 2);
+      break;
+    default:
+      return;
+  }
+  ev.preventDefault();
 }
 
 function setup() {
   for (const name of ["head", "tail"]) {
-    $(ed.parts[name].canvas).addEventListener("click", (ev) => {
+    const canvas = $(ed.parts[name].canvas);
+    canvas.addEventListener("click", (ev) => {
       ed.parts[name].cursor = canvasTime(name, ev);
       ed.lastPart = name;
+      canvas.focus({ preventScroll: true });
       syncFields();
       if (ed.playing) play(name);
       else draw(name);
     });
+    canvas.addEventListener(
+      "wheel",
+      (ev) => {
+        const p = ed.parts[name];
+        if (!p.length) return;
+        ev.preventDefault();
+        if (ev.shiftKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) {
+          const d = (ev.shiftKey ? ev.deltaY : ev.deltaX) || 0;
+          setView(name, p.viewStart + (d / 500) * p.viewLen, p.viewLen);
+        } else {
+          zoom(name, ev.deltaY > 0 ? 1.25 : 0.8, canvasTime(name, ev));
+        }
+      },
+      { passive: false },
+    );
+    canvas.addEventListener("focus", () => (ed.lastPart = name));
   }
   for (const b of $$("[data-play]", dlg())) b.addEventListener("click", () => play(b.dataset.play));
   for (const b of $$("[data-stop]", dlg())) b.addEventListener("click", stop);
-  $("#set-start").addEventListener("click", () => {
-    ed.start = Math.round(ed.parts.head.cursor * 10) / 10;
-    $("#pat-to").value = formatTime(ed.start);
-    syncFields();
-    drawAll();
-  });
-  $("#set-end").addEventListener("click", () => {
-    ed.end = Math.round(ed.parts.tail.cursor * 10) / 10;
-    syncFields();
-    drawAll();
-  });
+  for (const b of $$("[data-zoom]", dlg())) {
+    b.addEventListener("click", () => {
+      const name = b.dataset.part;
+      const p = ed.parts[name];
+      if (b.dataset.zoom === "all") setView(name, p.offset, p.length);
+      else zoom(name, b.dataset.zoom === "in" ? 0.5 : 2);
+    });
+  }
+  $("#set-start").addEventListener("click", setStartAtCursor);
+  $("#set-end").addEventListener("click", setEndAtCursor);
   $("#ed-clear-start").addEventListener("click", () => {
     ed.start = null;
     syncFields();
@@ -437,20 +596,17 @@ function setup() {
   $("#ed-start").addEventListener("change", onFieldChange);
   $("#ed-end").addEventListener("change", onFieldChange);
   $("#ed-save").addEventListener("click", save);
+  $("#ed-next").addEventListener("click", saveAndNext);
   $("#ed-cancel").addEventListener("click", close);
   $("#pat-save").addEventListener("click", savePattern);
+  // Enter in a text field must not submit (and close) the dialog form.
+  $("#editor-form").addEventListener("submit", (ev) => ev.preventDefault());
   dlg().addEventListener("close", () => {
     stop();
     ed.loadToken++;
     invoke("cancel_previews").catch(() => {});
   });
-  dlg().addEventListener("keydown", (ev) => {
-    if (ev.code === "Space" && !(ev.target instanceof HTMLInputElement) && !(ev.target instanceof HTMLButtonElement)) {
-      ev.preventDefault();
-      if (ed.playing) stop();
-      else play(ed.lastPart);
-    }
-  });
+  dlg().addEventListener("keydown", onKey);
   window.addEventListener("resize", () => {
     if (dlg().open) drawAll();
   });

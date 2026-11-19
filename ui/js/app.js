@@ -4,6 +4,7 @@ import { formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, S
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
+import { FILTERS, filterTest, isBusy as busy, missingSermon, startIsProposal } from "./logic.js";
 
 export const MEDIA_EXTENSIONS = ["mp3", "mp4", "m4a", "webm", "mov", "wav", "aac", "ogg", "opus", "flac", "mkv", "wma", "m4v"];
 
@@ -17,6 +18,7 @@ export const app = {
   previewHead: 180,
   previewTail: 120,
   defaultYoutubeDir: "",
+  filter: "all", // key of the active list filter (logic.js FILTERS)
 };
 
 const rows = new Map(); // id -> { tr, title, start, status, result, actions }
@@ -108,8 +110,11 @@ function renderList() {
       rows.delete(id);
     }
   }
-  $("#empty").hidden = app.order.length > 0;
-  $("#jobs").hidden = app.order.length === 0;
+  const empty = app.order.length === 0;
+  $("#empty").hidden = !empty;
+  $("#jobs").hidden = empty;
+  $("#list-tools").hidden = empty;
+  $("#drop").classList.toggle("compact", !empty);
   renderToolbar();
 }
 
@@ -127,9 +132,8 @@ function createRow(id) {
     maxlength: 200,
     placeholder: "Kaznodzieja - RRRR.MM.DD",
     "aria-label": "Kaznodzieja i data",
-    title: "Kaznodzieja i data, odczytane z nazwy pliku. Możesz je poprawić.",
   });
-  const preview = h("div", { class: "hint title-preview" });
+  const info = h("span", { class: "info", tabindex: 0, role: "note" }, "i");
   const save = async () => {
     try {
       await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
@@ -139,42 +143,40 @@ function createRow(id) {
   };
   sermon.addEventListener("change", save);
   suffix.addEventListener("change", save);
+  // Enter jumps to the title of the next visible file, so titles can be typed one after another.
+  sermon.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" || ev.isComposing) return;
+    ev.preventDefault();
+    const visible = app.order
+      .filter((i) => i === id || app.jobs.get(i)?.status !== "done")
+      .map((i) => rows.get(i))
+      .filter((r) => r && !r.tr.hidden && !r.sermon.disabled);
+    const next = visible[visible.findIndex((r) => r.sermon === sermon) + 1];
+    if (next) {
+      next.sermon.focus();
+      next.sermon.select();
+    } else sermon.blur();
+  });
   const fileName = h("div", { class: "file-name" });
   const r = {
     tr: h("tr"),
     fileName,
     sermon,
     suffix,
-    preview,
+    info,
     start: h("td", { class: "c-start" }),
     status: h("td", { class: "c-status" }),
     result: h("td", { class: "c-result" }),
     actions: h("td", { class: "c-actions" }),
   };
   r.tr.append(
-    h(
-      "td",
-      { class: "c-title" },
-      fileName,
-      sermon,
-      h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "Kaznodzieja i data:"), suffix),
-      preview,
-    ),
+    h("td", { class: "c-title" }, fileName, sermon, h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "-"), suffix, info)),
     r.start,
     r.status,
     r.result,
     r.actions,
   );
   return r;
-}
-
-/** True when the episode still needs a sermon title typed in. */
-export function missingSermon(job) {
-  return !job.sermonTitle?.trim();
-}
-
-function busy(job) {
-  return job.status === "processing" || job.status === "queued" || job.status === "downloading";
 }
 
 function updateRow(job) {
@@ -190,12 +192,14 @@ function updateRow(job) {
     "missing",
     missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
   );
-  const previewLines = [];
+  const tip = ["Kaznodzieja i data, odczytane z nazwy pliku. Możesz je poprawić."];
   if (job.status !== "downloading") {
-    previewLines.push(h("div", {}, `Tytuł w tagach MP3: ${job.title || "(pusty)"}`));
-    if (job.status !== "done" && job.outputName) previewLines.push(h("div", {}, `Nazwa pliku: ${job.outputName}`));
+    tip.push(`Tytuł w tagach MP3: ${job.title || "(pusty)"}`);
+    if (job.status !== "done" && job.outputName) tip.push(`Nazwa pliku: ${job.outputName}`);
   }
-  r.preview.replaceChildren(...previewLines);
+  r.info.title = tip.join("\n");
+  r.info.setAttribute("aria-label", tip.join(". "));
+  r.tr.hidden = !filterTest(app.filter)(job);
 
   // start marker
   r.start.replaceChildren();
@@ -205,20 +209,31 @@ function updateRow(job) {
     r.start.append(h("span", { class: "hint" }, "Szukam początku kazania..."));
   } else {
     const label = startSourceLabel(job);
+    const check = startIsProposal(job) && ["waiting", "cancelled"].includes(job.status);
     r.start.append(
       h(
         "div",
         { class: "stack" },
-        h("div", {}, h("span", { class: "time" }, job.start != null ? formatTime(job.start) : "00:00,0"), " "),
-        h("div", {}, h("span", { class: `badge ${label.cls}` }, label.text)),
+        h(
+          "div",
+          {},
+          h("span", { class: "time" }, job.start != null ? formatTime(job.start) : "00:00,0"),
+          " ",
+          h("span", { class: `badge ${label.cls}`, title: label.title }, label.text),
+        ),
         job.end != null ? h("div", { class: "hint" }, `Koniec: ${formatTime(job.end)}`) : null,
         h(
           "div",
           {},
           h(
             "button",
-            { type: "button", class: "small", disabled: busy(job) || job.duration == null, onclick: () => openEditor(job.id) },
-            "Edytuj cięcie",
+            {
+              type: "button",
+              class: check ? "small primary" : "small",
+              disabled: busy(job) || job.duration == null,
+              onclick: () => openEditor(job.id),
+            },
+            check ? "Sprawdź początek" : "Edytuj cięcie",
           ),
         ),
       ),
@@ -302,10 +317,6 @@ function renderToolbar() {
   const queued = count("queued");
   const analyzing = count("analyzing");
   const downloading = count("downloading");
-  const proposals = jobs.filter(
-    (j) => ["waiting", "cancelled"].includes(j.status) && ["vadProposal", "patternProposal"].includes(j.startSource),
-  ).length;
-
   const parts = [];
   if (n > 0) parts.push(`${n} ${plikow(n)}`);
   if (done) parts.push(`gotowe: ${done}`);
@@ -313,14 +324,9 @@ function renderToolbar() {
   if (errors) parts.push(`błędy: ${errors}`);
   if (analyzing) parts.push(`analiza: ${analyzing}`);
   if (downloading) parts.push(`pobieranie z YouTube: ${downloading}`);
-  const noTitle = jobs.filter((j) => ["waiting", "cancelled", "analyzing"].includes(j.status) && missingSermon(j)).length;
-  const sentences = [];
-  if (parts.length) sentences.push(`${parts.join(", ")}.`);
-  if (proposals) sentences.push(`${proposals} ${plikow(proposals)} ${maMaja(proposals)} tylko propozycję startu, sprawdź przed obróbką.`);
-  if (noTitle) sentences.push(`${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania.`);
-  const text = sentences.join(" ");
-  $("#summary").textContent = text;
-  $("#summary").className = proposals || noTitle ? "warn-text" : "";
+  $("#summary").textContent = parts.length ? `${parts.join(", ")}.` : "";
+
+  renderFilters(jobs);
 
   const startable = jobs.filter((j) => j.status === "waiting" || j.status === "cancelled").length;
   $("#btn-start").disabled = startable === 0 || !!app.toolsError;
@@ -339,6 +345,34 @@ function renderToolbar() {
   } else {
     overall.hidden = true;
   }
+}
+
+function renderFilters(jobs) {
+  const box = $("#filters");
+  const chips = FILTERS.map((f) => {
+    const n = jobs.filter(f.test).length;
+    if (f.key !== "all" && n === 0 && app.filter !== f.key) return null;
+    const warn = (f.key === "review" || f.key === "untitled" || f.key === "errors") && n > 0;
+    return h(
+      "button",
+      {
+        type: "button",
+        class: `chip${app.filter === f.key ? " active" : ""}${warn ? " warn" : ""}`,
+        "aria-pressed": String(app.filter === f.key),
+        onclick: () => setFilter(f.key),
+      },
+      `${f.label} (${n})`,
+    );
+  }).filter(Boolean);
+  box.replaceChildren(...chips);
+  const test = filterTest(app.filter);
+  $("#filter-empty").hidden = jobs.length === 0 || jobs.some(test);
+}
+
+function setFilter(key) {
+  app.filter = key;
+  for (const id of app.order) updateRow(app.jobs.get(id));
+  renderToolbar();
 }
 
 // ---------------------------------------------------------------- actions

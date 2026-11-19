@@ -32,12 +32,31 @@ const DEFAULTS = {
 
 const field = (name) => form().elements.namedItem(name);
 
-export function openSettings() {
+export function openSettings(tab = "basic") {
   draft = structuredClone(app.settings ?? DEFAULTS);
   fill();
   renderPatterns();
   $("#settings-error").textContent = "";
+  showTab(tab);
   dlg().showModal();
+}
+
+const TABS = ["basic", "sound", "advanced"];
+
+function showTab(name) {
+  for (const t of TABS) {
+    const on = t === name;
+    const tab = $(`#tab-${t}`);
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    $(`#panel-${t}`).hidden = !on;
+  }
+}
+
+/** Shows the tab that holds `el` (e.g. a field with a validation error). */
+function showTabOf(el) {
+  const panel = el?.closest?.(".tab-panel");
+  if (panel) showTab(panel.id.replace("panel-", ""));
 }
 
 function fill() {
@@ -79,7 +98,9 @@ function num(name, { min, max, label }) {
   const v = Number(String(raw).replace(",", "."));
   if (raw === "" || !Number.isFinite(v) || v < min || v > max) {
     const f = (x) => String(x).replace(".", ",");
-    throw new Error(`${label}: wpisz liczbę od ${f(min)} do ${f(max)}.`);
+    const err = new Error(`${label}: wpisz liczbę od ${f(min)} do ${f(max)}.`);
+    err.field = field(name);
+    throw err;
   }
   return v;
 }
@@ -88,7 +109,11 @@ function collect() {
   const s = structuredClone(draft);
   const mode = form().querySelector("input[name=outmode]:checked")?.value;
   if (mode === "beside") s.output_dir = null;
-  else if (!s.output_dir) throw new Error("Wybierz folder na wyniki albo zaznacz „Obok oryginału”.");
+  else if (!s.output_dir) {
+    const err = new Error("Wybierz folder na wyniki albo zaznacz „Obok oryginału”.");
+    err.field = form().querySelector("[data-file=output_dir] [data-choose]");
+    throw err;
+  }
   s.gap_after_intro = num("gap_after_intro", { min: 0, max: 3, label: "Przerwa po intro" });
   s.gap_before_outro = num("gap_before_outro", { min: 0, max: 3, label: "Przerwa przed outro" });
   s.crossfade_ms = Math.round(num("crossfade_ms", { min: 0, max: 5000, label: "Przejście" }));
@@ -194,6 +219,15 @@ function setup() {
       showPath(name);
     });
   }
+  for (const t of TABS) $(`#tab-${t}`).addEventListener("click", () => showTab(t));
+  $(".tabs", dlg()).addEventListener("keydown", (ev) => {
+    if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+    const cur = TABS.findIndex((t) => $(`#tab-${t}`).getAttribute("aria-selected") === "true");
+    const next = TABS[(cur + (ev.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+    showTab(next);
+    $(`#tab-${next}`).focus();
+    ev.preventDefault();
+  });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
   $("#settings-defaults").addEventListener("click", () => {
     draft = structuredClone(DEFAULTS);
@@ -205,6 +239,8 @@ function setup() {
       s = collect();
     } catch (e) {
       $("#settings-error").textContent = e.message;
+      showTabOf(e.field);
+      e.field?.focus();
       return;
     }
     try {
