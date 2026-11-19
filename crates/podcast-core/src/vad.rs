@@ -30,6 +30,12 @@ const WINDOW_S: f64 = 20.0;
 const MIN_RATIO: f64 = 0.6;
 /// The proposal is placed slightly before the detected onset.
 const PRE_ROLL_S: f64 = 0.3;
+/// Before the onset, quieter speech (a short greeting the model is less sure
+/// about) still belongs to the start: frames at or above this probability,
+/// separated by pauses of at most `BACK_GAP_S`, within `BACK_MAX_S`.
+const BACK_LOW: f32 = 0.2;
+const BACK_GAP_S: f64 = 0.8;
+const BACK_MAX_S: f64 = 4.0;
 
 type Model = TypedRunnableModel;
 
@@ -129,13 +135,37 @@ pub fn first_long_speech(probs: &[f32]) -> Option<SpeechProposal> {
         }
         let ratio = (prefix[end] - prefix[i]) as f64 / (end - i) as f64;
         if ratio >= MIN_RATIO {
+            let first = earlier_onset(probs, i);
             return Some(SpeechProposal {
-                start: (i as f64 * FRAME_S - PRE_ROLL_S).max(0.0),
+                start: (first as f64 * FRAME_S - PRE_ROLL_S).max(0.0),
                 ratio,
             });
         }
     }
     None
+}
+
+/// Moves an onset back over weaker speech just before it (see `BACK_LOW`):
+/// "Dzień dobry", a pause, then the sermon should start at "Dzień".
+fn earlier_onset(probs: &[f32], onset: usize) -> usize {
+    let max_gap = (BACK_GAP_S / FRAME_S).round() as usize;
+    let max_back = (BACK_MAX_S / FRAME_S).round() as usize;
+    let mut first = onset;
+    let mut gap = 0;
+    let mut j = onset;
+    while j > 0 && onset - (j - 1) <= max_back {
+        j -= 1;
+        if probs[j] >= BACK_LOW {
+            first = j;
+            gap = 0;
+        } else {
+            gap += 1;
+            if gap > max_gap {
+                break;
+            }
+        }
+    }
+    first
 }
 
 /// Decodes the beginning of a file and proposes where the sermon starts.
@@ -194,6 +224,31 @@ mod tests {
         let p = first_long_speech(&probs).unwrap();
         assert!((p.start - (40.0 - PRE_ROLL_S)).abs() < 0.1, "{p:?}");
         assert!(p.ratio > 0.9);
+    }
+
+    #[test]
+    fn quiet_greeting_before_a_pause_is_included() {
+        // music, a quiet "Dzień dobry" the model is unsure about (0.4), a short
+        // pause, then the sermon: the start belongs before the greeting
+        let probs = probs_from(&[(35.7, 0.05), (0.5, 0.4), (0.4, 0.05), (25.0, 0.9)]);
+        let p = first_long_speech(&probs).unwrap();
+        assert!((p.start - (35.7 - PRE_ROLL_S)).abs() < 0.1, "{p:?}");
+        // a clear greeting, a 0.6 s pause, then speech: also from the greeting
+        let probs = probs_from(&[(20.0, 0.05), (0.6, 0.9), (0.6, 0.1), (25.0, 0.9)]);
+        let p = first_long_speech(&probs).unwrap();
+        assert!((p.start - (20.0 - PRE_ROLL_S)).abs() < 0.1, "{p:?}");
+    }
+
+    #[test]
+    fn music_ending_before_a_longer_pause_is_not_included() {
+        // singing (0.3) until 2 s before the sermon: the pause stops the search
+        let probs = probs_from(&[(10.0, 0.3), (2.0, 0.05), (25.0, 0.9)]);
+        let p = first_long_speech(&probs).unwrap();
+        assert!((p.start - (12.0 - PRE_ROLL_S)).abs() < 0.1, "{p:?}");
+        // never more than 4 s back, even through continuous weak speech
+        let probs = probs_from(&[(10.0, 0.05), (10.0, 0.25), (25.0, 0.9)]);
+        let p = first_long_speech(&probs).unwrap();
+        assert!(p.start >= 20.0 - 4.0 - PRE_ROLL_S - 0.1, "{p:?}");
     }
 
     #[test]

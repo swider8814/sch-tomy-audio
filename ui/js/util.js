@@ -59,3 +59,79 @@ export async function pickFiles(options) {
   if (!r) return [];
   return Array.isArray(r) ? r : [r];
 }
+
+/**
+ * Makes it obvious that a dialog continues below (macOS hides scroll bars
+ * until you scroll): shows "Przewiń, żeby zobaczyć więcej" next to the dialog
+ * buttons while there is more content below. Clicking it scrolls down.
+ */
+export function setupScrollHints() {
+  for (const body of $$("dialog .dialog-body")) {
+    const buttons = $(".dialog-buttons", body);
+    if (!buttons) continue;
+    const hint = h(
+      "button",
+      {
+        type: "button",
+        class: "link scroll-hint",
+        hidden: true,
+        onclick: () => body.scrollBy({ top: body.clientHeight * 0.7, behavior: "smooth" }),
+      },
+      "▼ Przewiń, żeby zobaczyć więcej",
+    );
+    buttons.prepend(hint);
+    let shown = null;
+    const update = () => {
+      const more = body.scrollHeight - body.scrollTop - body.clientHeight > 8;
+      if (more === shown) return; // no DOM writes: the observer below watches "hidden"
+      shown = more;
+      hint.hidden = !more;
+      body.classList.toggle("more-below", more);
+    };
+    body.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(body);
+    for (const child of body.children) ro.observe(child);
+    // tabs and <details> change the height without resizing `body` itself
+    new MutationObserver(update).observe(body, { subtree: true, attributes: true, attributeFilter: ["hidden", "open"] });
+    update();
+  }
+}
+
+/**
+ * Tooltips for elements with `data-tip`: shown at once on hover or keyboard
+ * focus (the browser's own `title` tooltips appear only after a delay).
+ */
+export function setupTooltips() {
+  const tip = h("div", { id: "tooltip", role: "tooltip", hidden: true });
+  document.body.append(tip);
+  let target = null;
+  const show = (el) => {
+    target = el;
+    tip.textContent = el.dataset.tip;
+    tip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left + r.width / 2 - t.width / 2), window.innerWidth - t.width - 8);
+    const below = r.bottom + 8 + t.height <= window.innerHeight;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${below ? r.bottom + 8 : r.top - t.height - 8}px`;
+  };
+  const hide = () => {
+    target = null;
+    tip.hidden = true;
+  };
+  const enter = (e) => {
+    const el = e.target.closest?.("[data-tip]");
+    if (el && el.dataset.tip && el !== target) show(el);
+  };
+  const leave = (e) => {
+    if (target && !target.contains(e.relatedTarget)) hide();
+  };
+  document.addEventListener("mouseover", enter);
+  document.addEventListener("focusin", enter);
+  document.addEventListener("mouseout", leave);
+  document.addEventListener("focusout", leave);
+  window.addEventListener("scroll", hide, true);
+  document.addEventListener("keydown", (e) => e.key === "Escape" && hide());
+}

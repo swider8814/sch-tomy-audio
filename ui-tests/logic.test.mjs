@@ -107,3 +107,51 @@ test("release info accepts only this project's release page", () => {
   assert.equal(releaseInfo({ tag_name: "latest" }), null);
   assert.equal(releaseInfo(null), null);
 });
+
+import { THEMES, themeOf } from "../ui/js/logic.js";
+
+test("theme values", () => {
+  for (const t of THEMES) assert.equal(themeOf(t), t);
+  for (const t of [undefined, null, "", "Dark", "neon"]) assert.equal(themeOf(t), "system");
+});
+
+import { etaSeconds, formatEta, runFraction, similarSpeaker, splitSuffix } from "../ui/js/logic.js";
+
+test("run fraction and ETA", () => {
+  const jobs = [
+    { status: "done" },
+    { status: "processing", progress: 0.5 },
+    { status: "queued" },
+    { status: "error" },
+  ];
+  assert.equal(runFraction(jobs), 2.5 / 4);
+  assert.equal(runFraction([]), 0);
+  assert.equal(etaSeconds(10, 0.5), null); // too early
+  assert.equal(etaSeconds(60, 0.01), null); // too little progress
+  assert.equal(etaSeconds(60, 0.5), 60);
+  assert.equal(etaSeconds(120, 1), null);
+  assert.equal(formatEta(30), "mniej niż minuta");
+  assert.equal(formatEta(4 * 60 + 10), "około 4 min");
+  assert.equal(formatEta(65 * 60), "około 1 godz. 5 min");
+  assert.equal(formatEta(120 * 60), "około 2 godz.");
+  assert.equal(formatEta(null), "");
+  for (const s of [30, 300, 4000]) assert.ok(!/[—–·]/.test(formatEta(s)));
+});
+
+test("suffix and speaker suggestions", () => {
+  assert.deepEqual(splitSuffix("Adam Szumorek - 2026.10.11"), { name: "Adam Szumorek", date: "2026.10.11" });
+  assert.deepEqual(splitSuffix("Ewa Kowalska 06.09.2026"), { name: "Ewa Kowalska", date: "06.09.2026" });
+  assert.deepEqual(splitSuffix("Jan Nowak"), { name: "Jan Nowak", date: "" });
+  assert.deepEqual(splitSuffix("Ewa Kowalska 2026-11-15"), { name: "Ewa Kowalska", date: "2026-11-15" });
+  assert.deepEqual(splitSuffix("Ewa Kowalska - 15-11-2026"), { name: "Ewa Kowalska", date: "15-11-2026" });
+  assert.deepEqual(splitSuffix(" - 2026.10.11"), { name: "", date: "2026.10.11" });
+  const known = ["Adam Szumorek", "Rafał Piekarski", "Jan Nowak"];
+  assert.equal(similarSpeaker("Adam Szumorek", known), null); // exact
+  assert.equal(similarSpeaker("Adam Szumorke", known), "Adam Szumorek"); // swapped letters
+  assert.equal(similarSpeaker("adam szumorek", known), "Adam Szumorek"); // case
+  assert.equal(similarSpeaker("Rafal Piekarski", known), "Rafał Piekarski"); // Polish letter
+  assert.equal(similarSpeaker("Jan Nowik", known), "Jan Nowak");
+  assert.equal(similarSpeaker("Anna Nowak", known), null); // a different person
+  assert.equal(similarSpeaker("Ewa Kowalska", known), null);
+  assert.equal(similarSpeaker("", known), null);
+});

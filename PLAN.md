@@ -173,6 +173,40 @@ docs/threat-model.md
   the job list carry over. Because the product name changed, Windows/macOS
   install it next to the old app; the guide tells users to remove the old
   one. The ID3 album "SCh Tomy podcast" is the podcast's name and stays.
+* **Dark mode (v0.1.4):** setting `theme` = system (default) / light /
+  dark, in Podstawowe and as one icon in the top bar (moon: switch to dark,
+  sun: switch to light, based on what is on screen; both save the setting;
+  "system" is chosen in the settings only). Colours are CSS variables on `:root`; dark values apply
+  under `prefers-color-scheme: dark` unless `data-theme="light"`, and always
+  with `data-theme="dark"`. The native window theme follows via
+  `setTheme` (capability `core:window:allow-set-theme`), so the title bar
+  matches. The waveform canvas is dark in both themes.
+* **ETA and notification (v0.1.4):** a "run" lasts from the first queued
+  file until nothing is queued or processing; the remaining time is
+  extrapolated from its elapsed time and finished share (`logic.js`
+  `runFraction`, `etaSeconds`), shown after 15 s. At the end a system
+  notification (tauri-plugin-notification, setting `notify_done`) is sent
+  only when the window is not focused; permission is asked when processing
+  starts.
+* **Speaker suggestions (v0.1.4):** the speaker of every finished episode
+  (`speakers::speaker_of` on the "speaker - date" field) is remembered in
+  `speakers.json` in the data folder (max 300, most recent first). The
+  field offers them via a `<datalist>` ("Name - <this file's date>"), and a
+  name within one or two typos of a known one (ignoring case and Polish
+  letters) shows "Czy chodziło o...?" with a fix button. Names can be
+  removed in the settings.
+* **Listening to the result (v0.1.4):** `get_result_preview` decodes the
+  first 90 s or last 60 s of the job's own output file to WAV (same path as
+  the editor previews) and the UI plays it with WebAudio.
+* **VAD onset (v0.1.4 fix):** the "longer speech" onset is moved back over
+  weaker speech just before it (probability >= 0.2, pauses <= 0.8 s, at most
+  4 s), so a quiet greeting before a pause is not cut off; a longer pause
+  (e.g. after the teaser music) stops it. Tests in `vad.rs`.
+* **macOS signing (v0.1.4 fix):** ad hoc, without the hardened runtime.
+  With it (Tauri's default), library validation refused the Python that the
+  standalone yt-dlp unpacks at start ("different Team IDs"), so YouTube
+  downloads failed on macOS in 0.1.3. CI now starts yt-dlp, Deno and ffmpeg
+  from inside the built .app on Apple Silicon.
 * **Settings tabs (v0.1.3):** Podstawowe (files, folders, tags), Dźwięk
   (gaps, silence, loudness, format), Zajawki i zaawansowane (patterns,
   search window, concurrency), Skróty klawiszowe (read-only list: shortcuts

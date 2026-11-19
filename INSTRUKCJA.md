@@ -61,6 +61,8 @@ Kliknij **Ustawienia** w prawym górnym rogu. Ustawienia są podzielone na trzy 
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
 * **Gdzie zapisać gotowe pliki**: „Obok oryginału” albo wybrany folder.
 * **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
+* **Powiadomienia**: gdy obróbka wszystkich plików się skończy, a okno aplikacji nie jest na wierzchu, system pokaże powiadomienie. Przy pierwszej obróbce Windows albo macOS może zapytać o zgodę na powiadomienia.
+* **Wygląd**: „Jak w systemie” (aplikacja jest jasna albo ciemna tak jak Windows czy macOS), „Jasny” albo „Ciemny”. Wygląd zmienisz też szybko ikonką na górnym pasku, obok „Ustawienia”: księżyc włącza ciemny wygląd, słońce jasny. Żeby wrócić do „Jak w systemie”, wybierz tę opcję w Ustawieniach.
 * **Tagi MP3**: wykonawca i album zapisywane w każdym pliku.
 * W zakładce **Dźwięk** są przerwy, cisza, głośność i format MP3, a w zakładce **Zajawki i zaawansowane** zapisane zajawki serii i liczba plików obrabianych naraz. Te wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 
@@ -78,13 +80,15 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
    Gdy zatrzymasz kursor myszy nad etykietą, zobaczysz więcej szczegółów (np. pewność dopasowania zajawki).
 3. **Wpisz tytuły kazań.** Przy każdym pliku są dwa pola:
    * **Tytuł kazania** (większe pole), np. „Co mi wolno?”. Jeśli tytuł jest w nazwie pliku (np. „06.09.2026 - Rafał Piekarski - Wspólniej_audio.mp3”), aplikacja wpisze go sama. Puste pole jest podświetlone na żółto. Klawisz **Enter** przenosi Cię do tytułu następnego pliku, więc tytuły możesz wpisywać jeden po drugim.
-   * **Kaznodzieja i data** (mniejsze pole pod spodem), np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić.
+   * **Kaznodzieja i data** (mniejsze pole pod spodem), np. „Adam Szumorek - 2026.10.11”. Aplikacja odczytuje je z nazwy pliku, możesz je poprawić. Podczas pisania aplikacja podpowiada kaznodziejów z wcześniejszych odcinków. Gdy nazwisko wygląda na literówkę (np. „Szumorke” zamiast „Szumorek”), pod polem pojawi się pytanie „Czy chodziło o...?” z przyciskiem **Popraw**. Listę zapamiętanych kaznodziei (i usuwanie z niej literówek) znajdziesz w Ustawieniach, w zakładce „Zajawki i zaawansowane”.
 
    Gdy zatrzymasz kursor myszy nad małym znakiem **i** obok, zobaczysz, jaki tytuł trafi do pliku MP3 („Co mi wolno? - Adam Szumorek - 2026.10.11”, tak jak w Spotify) i jak będzie się nazywał gotowy plik (`2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`: bez polskich znaków i spacji, z datą na początku, żeby pliki układały się po kolei). Tytuł odcinka w Spotify ustawiasz osobno, we wpisie w WordPressie, najlepiej taki sam.
 4. **Sprawdź propozycje.** Przy plikach z żółtą propozycją kliknij **Sprawdź początek** (patrz punkt 6). W oknie cięcia przycisk **Zatwierdź i następny** zapisuje zmiany i od razu otwiera kolejny plik do sprawdzenia.
    Nad listą są filtry: **Wszystkie**, **Do sprawdzenia**, **Bez tytułu**, **Błędy** i **Gotowe**. Liczba w nawiasie mówi, ile plików pasuje. Kliknij filtr, żeby zobaczyć tylko te pliki.
 5. Kliknij **Przetwórz wszystkie**. Postęp widać przy każdym pliku i nad listą. Możesz w każdej chwili kliknąć **Anuluj obróbkę**.
-6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
+6. Po zakończeniu w kolumnie „Wynik” zobaczysz głośność (powinna być około -16 LUFS), szczyt, długość i ile sekund ciszy wycięto na końcu. Przyciski **▶ Początek** i **▶ Koniec** odtwarzają w aplikacji początek gotowego odcinka (intro, przerwa i początek kazania) albo jego koniec (koniec kazania, przerwa i outro), żeby szybko sprawdzić przejścia. Przycisk **Pokaż w folderze** otwiera folder z gotowym plikiem.
+
+   W trakcie obróbki nad listą widać, ile plików jest gotowych i mniej więcej ile czasu zostało do końca.
 
 Lista plików jest zapamiętywana: po zamknięciu i ponownym otwarciu aplikacji pliki wracają na listę (pliki przerwane w trakcie obróbki czekają na ponowne **Przetwórz wszystkie**, a przerwane pobieranie z YouTube wznowi się samo). Podczas obróbki i pobierania aplikacja nie pozwala komputerowi zasnąć.
 

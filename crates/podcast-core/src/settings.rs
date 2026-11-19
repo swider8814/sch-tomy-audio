@@ -60,6 +60,10 @@ pub struct Settings {
     pub album: String,
     /// Ask GitHub for a newer release when the app starts.
     pub check_updates: bool,
+    /// Colour theme: "system" (follow the OS), "light" or "dark".
+    pub theme: String,
+    /// System notification when all queued files are finished.
+    pub notify_done: bool,
 }
 
 impl Default for Settings {
@@ -85,6 +89,8 @@ impl Default for Settings {
             artist: crate::tags::DEFAULT_ARTIST.into(),
             album: crate::tags::DEFAULT_ALBUM.into(),
             check_updates: true,
+            theme: "system".into(),
+            notify_done: true,
         }
     }
 }
@@ -93,6 +99,9 @@ impl Default for Settings {
 pub const MAX_SEARCH_WINDOW_S: f64 = 900.0;
 
 pub const BITRATES: [u32; 6] = [96, 128, 160, 192, 256, 320];
+
+/// Allowed values of [`Settings::theme`].
+pub const THEMES: [&str; 3] = ["system", "light", "dark"];
 
 fn clamp_finite(v: f64, lo: f64, hi: f64, default: f64) -> f64 {
     if v.is_finite() {
@@ -134,6 +143,9 @@ impl Settings {
         }
         if self.album.trim().is_empty() {
             self.album = d.album;
+        }
+        if !THEMES.contains(&self.theme.as_str()) {
+            self.theme = d.theme;
         }
         self
     }
@@ -207,6 +219,26 @@ mod tests {
         assert!(s.silence.trim_trailing);
         assert!(!s.silence.trim_leading);
         assert!(s.check_updates);
+        assert_eq!(s.theme, "system");
+        assert!(s.notify_done);
+    }
+
+    #[test]
+    fn theme_is_one_of_three() {
+        for t in THEMES {
+            let s = Settings {
+                theme: t.into(),
+                ..Default::default()
+            }
+            .sanitized();
+            assert_eq!(s.theme, t);
+        }
+        let s = Settings {
+            theme: "neon".into(),
+            ..Default::default()
+        }
+        .sanitized();
+        assert_eq!(s.theme, "system");
     }
 
     #[test]
@@ -242,6 +274,7 @@ mod tests {
         assert_eq!(s.target_lufs, -16.0);
         // files from older versions have no `check_updates`: on by default
         assert!(s.check_updates);
+        assert_eq!(s.theme, "system");
     }
 
     /// `write_atomic` must replace an existing file on every platform

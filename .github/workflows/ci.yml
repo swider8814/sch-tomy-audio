@@ -149,6 +149,23 @@ jobs:
         run: node scripts/fetch-ffmpeg.mjs --target ${{ matrix.target }}
       - name: Build installer
         run: npx tauri build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      # The bundled tools must start from inside the signed app: yt-dlp's
+      # macOS build unpacks its own Python, which library validation of the
+      # hardened runtime refuses (that broke YouTube in 0.1.3 on macOS).
+      - name: Bundled tools start inside the app (macOS, native)
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          set -euo pipefail
+          # the intermediate .app is removed after bundling: use the DMG users get
+          dmg=$(ls target/${{ matrix.target }}/release/bundle/dmg/*.dmg | head -n 1)
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+          trap 'hdiutil detach "$mnt" || true' EXIT
+          app=$(ls -d "$mnt"/*.app | head -n 1)
+          codesign -dv "$app/Contents/MacOS/yt-dlp" 2>&1 | grep -E 'flags|Signature' || true
+          "$app/Contents/MacOS/yt-dlp" --version
+          "$app/Contents/MacOS/deno" --version
+          "$app/Contents/MacOS/ffmpeg" -version | head -n 1
       - name: Collect installer
         shell: bash
         run: |

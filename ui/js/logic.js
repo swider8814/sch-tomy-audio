@@ -106,3 +106,109 @@ export function releaseInfo(json) {
   const safe = url.startsWith(`${RELEASES_PAGE}/`) && /^[A-Za-z0-9/._-]+$/.test(url.slice("https://".length));
   return { version: version.join("."), url: safe ? url : RELEASES_PAGE };
 }
+
+// --------------------------------------------------------------- theme
+
+/** Allowed colour themes (same list as `settings::THEMES` in Rust). */
+export const THEMES = ["system", "light", "dark"];
+
+/** Normalises a stored value to one of THEMES ("system" for anything else). */
+export function themeOf(value) {
+  return THEMES.includes(value) ? value : "system";
+}
+
+// ------------------------------------------------- run progress and ETA
+
+/**
+ * Share (0..1) of a processing run that is finished: done, failed and
+ * cancelled files count as 1, a file in progress by its progress, a queued
+ * one as 0.
+ */
+export function runFraction(jobs) {
+  if (!jobs.length) return 0;
+  let sum = 0;
+  for (const j of jobs) {
+    if (j.status === "done" || j.status === "error" || j.status === "cancelled") sum += 1;
+    else if (j.status === "processing") sum += Math.min(1, Math.max(0, j.progress ?? 0));
+  }
+  return sum / jobs.length;
+}
+
+/**
+ * Remaining seconds of a run, extrapolated from the time it has taken so far.
+ * `null` while there is too little data for a sensible guess.
+ */
+export function etaSeconds(elapsedS, fraction) {
+  if (!(elapsedS >= 15) || !(fraction >= 0.03) || fraction >= 1) return null;
+  return (elapsedS * (1 - fraction)) / fraction;
+}
+
+/** "mniej niż minuta", "około 4 min", "około 1 godz. 5 min". */
+export function formatEta(seconds) {
+  if (seconds == null || !Number.isFinite(seconds)) return "";
+  if (seconds < 60) return "mniej niż minuta";
+  const min = Math.round(seconds / 60);
+  if (min < 60) return `około ${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `około ${h} godz. ${m} min` : `około ${h} godz.`;
+}
+
+// ---------------------------------------------------------- speakers
+
+/** "Adam Szumorek - 2026.10.11" -> { name: "Adam Szumorek", date: "2026.10.11" }. */
+export function splitSuffix(suffix) {
+  const s = String(suffix ?? "").trim();
+  // same date forms as the backend: 2026.11.08, 2026-11-08, 08.11.2026, 08-11-2026
+  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{2}[.-]\d{2}|\d{2}[.-]\d{2}[.-]\d{4})$/.exec(s);
+  if (m) return { name: m[1].trim().replace(/[-\s]+$/, ""), date: m[2] };
+  return { name: s, date: "" };
+}
+
+/** Lower case, no Polish diacritics, single spaces. */
+function fold(name) {
+  return String(name ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "l")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+}
+
+function distance(a, b) {
+  if (Math.abs(a.length - b.length) > 2) return 3;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * A remembered name that `name` is probably a misspelling of (differs by
+ * case, Polish letters or up to two typos), or null when `name` is already
+ * known exactly or nothing is close.
+ */
+export function similarSpeaker(name, known) {
+  const n = String(name ?? "").trim().split(/\s+/).join(" ");
+  if (n.length < 4 || known.includes(n)) return null;
+  const f = fold(n);
+  let best = null;
+  let bestD = 3;
+  for (const k of known) {
+    const d = distance(f, fold(k));
+    const limit = f.length >= 10 ? 2 : 1;
+    if (d <= limit && d < bestD) {
+      best = k;
+      bestD = d;
+    }
+  }
+  return best;
+}
