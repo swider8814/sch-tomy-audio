@@ -134,7 +134,7 @@ mod tests {
         assert!(w.poll(&[(f.clone(), 800, 3)]).is_empty(), "growing again");
         // unchanged for the whole window: added exactly once
         let (n, ready) = settle(&mut w, &[(f.clone(), 800, 3)], 20);
-        assert_eq!(ready, [f.clone()]);
+        assert_eq!(ready, std::slice::from_ref(&f));
         assert_eq!(n, STABLE_POLLS);
         assert!(w.poll(&[(f, 800, 3)]).is_empty(), "added only once");
         // the modification time alone also counts as a change
