@@ -16,6 +16,7 @@ export const app = {
   settingsNote: null,
   previewHead: 180,
   previewTail: 120,
+  defaultYoutubeDir: "",
 };
 
 const rows = new Map(); // id -> { tr, title, start, status, result, actions }
@@ -30,6 +31,7 @@ async function refresh() {
   app.settingsNote = s.settingsNote;
   app.previewHead = s.previewHead;
   app.previewTail = s.previewTail;
+  app.defaultYoutubeDir = s.defaultYoutubeDir;
   setJobs(s.jobs);
   renderBanners();
 }

@@ -55,6 +55,7 @@ Kliknij **Ustawienia** w prawym górnym rogu.
 * **Intro** i **Outro**: kliknij **Wybierz plik** i wskaż nagranie intro oraz outro. Bez nich aplikacja też działa (przytnie i wyrówna nagrania), ale na górze okna zobaczysz żółte przypomnienie.
 * **Okładka (JPG)**: opcjonalnie obrazek, który zobaczą słuchacze.
 * **Gdzie zapisać wyniki**: „Obok oryginału” albo wybrany folder.
+* **Nagrania z YouTube**: folder, do którego trafia dźwięk pobrany z YouTube (domyślnie Pobrane/SCh Tomy YouTube). Przycisk **Domyślny** przywraca ten folder.
 * Pozostałe wartości są już dobrze ustawione. Nie musisz ich zmieniać.
 
 Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
@@ -82,7 +83,7 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 1. Kliknij **Pobierz z YouTube** (obok „Wybierz pliki”).
 2. Wklej adres filmu (np. `https://www.youtube.com/watch?v=...` albo `https://youtu.be/...`). Możesz wkleić kilka adresów naraz, każdy w osobnej linii.
-3. Kliknij **Pobierz**. Aplikacja pobierze sam dźwięk (bez obrazu), film po filmie, do folderu **Pobrane/SCh Tomy YouTube** i doda nagrania do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
+3. Kliknij **Pobierz**. Aplikacja pobierze sam dźwięk (bez obrazu), film po filmie, do folderu z Ustawień (domyślnie **Pobrane/SCh Tomy YouTube**) i doda nagrania do listy. Tytuł kazania i datę weźmie z filmu; kaznodzieję dopisz w polu „Kaznodzieja i data”, np. „Adam Szumorek - 2026.10.11”.
 4. Dalej wszystko działa tak samo jak dla plików: sprawdź start, kliknij **Przetwórz wszystkie**.
 
 **Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.

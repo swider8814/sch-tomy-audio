@@ -32,8 +32,9 @@ pub struct AppState {
     pub wake: Condvar,
     pub tools: Result<Tools, CoreError>,
     pub yt: Result<YtTools, CoreError>,
-    /// Where YouTube audio is saved (Downloads/SCh Tomy YouTube).
-    pub youtube_dir: PathBuf,
+    /// Default folder for YouTube audio (Downloads/SCh Tomy YouTube); the
+    /// setting `youtube_dir` overrides it.
+    pub default_youtube_dir: PathBuf,
     pub settings_path: PathBuf,
     pub store: PatternStore,
     /// Cancellation tokens of running preview decodes (waveform editor).
@@ -68,7 +69,7 @@ impl AppState {
             wake: Condvar::new(),
             tools: Tools::locate(),
             yt: YtTools::locate(),
-            youtube_dir: download_dir
+            default_youtube_dir: download_dir
                 .unwrap_or_else(|| data_dir.join("downloads"))
                 .join("SCh Tomy YouTube"),
             settings_path,
@@ -98,6 +99,14 @@ impl AppState {
         for t in p.drain(..) {
             t.cancel();
         }
+    }
+
+    /// Folder for YouTube downloads: the setting, or the default.
+    pub fn youtube_dir(&self, settings: &Settings) -> PathBuf {
+        settings
+            .youtube_dir
+            .clone()
+            .unwrap_or_else(|| self.default_youtube_dir.clone())
     }
 
     pub fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -441,6 +450,7 @@ struct DownloadTask {
     id: u64,
     url: String,
     cancel: CancelToken,
+    dir: PathBuf,
 }
 
 fn next_download(state: &AppState) -> Option<DownloadTask> {
@@ -454,11 +464,14 @@ fn next_download(state: &AppState) -> Option<DownloadTask> {
         }) {
             j.download_running = true;
             j.cancel = CancelToken::new();
-            return Some(DownloadTask {
+            let task = DownloadTask {
                 id: j.view.id,
                 url: j.view.source_url.clone().unwrap_or_default(),
                 cancel: j.cancel.clone(),
-            });
+                dir: PathBuf::new(),
+            };
+            let dir = state.youtube_dir(&g.settings);
+            return Some(DownloadTask { dir, ..task });
         }
         g = state
             .wake
@@ -493,13 +506,8 @@ fn download_worker(app: AppHandle, state: Arc<AppState>) {
                     emit_job(&app, &j.view);
                 }
             };
-            let path = youtube::download_audio(
-                tools,
-                &info,
-                &state.youtube_dir,
-                &task.cancel,
-                &mut on_progress,
-            )?;
+            let path =
+                youtube::download_audio(tools, &info, &task.dir, &task.cancel, &mut on_progress)?;
             Ok((path, info))
         })();
         let mut g = state.lock();

@@ -34,6 +34,8 @@ pub struct StateView {
     settings_note: Option<String>,
     preview_head: f64,
     preview_tail: f64,
+    /// Default folder for YouTube downloads (shown in the settings).
+    default_youtube_dir: String,
 }
 
 fn not_found() -> String {
@@ -87,6 +89,7 @@ pub fn get_state(state: St<'_>) -> StateView {
         settings_note: g.settings_note.clone(),
         preview_head: PREVIEW_HEAD_S,
         preview_tail: PREVIEW_TAIL_S,
+        default_youtube_dir: state.default_youtube_dir.display().to_string(),
     }
 }
 
@@ -208,7 +211,10 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
         added,
         skipped,
         invalid,
-        dir: state.youtube_dir.display().to_string(),
+        dir: state
+            .youtube_dir(&state.lock().settings)
+            .display()
+            .to_string(),
     })
 }
 
