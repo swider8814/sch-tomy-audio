@@ -244,6 +244,21 @@ mod tests {
         assert!(s.check_updates);
     }
 
+    /// `write_atomic` must replace an existing file on every platform
+    /// (`std::fs::rename` replaces the destination on Windows too); the
+    /// settings, patterns and the job list are saved this way repeatedly.
+    #[test]
+    fn write_atomic_replaces_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("Kolejka ąę").join("queue.json");
+        for i in 0..3 {
+            let data = format!("[{i}]");
+            write_atomic(&p, data.as_bytes()).unwrap();
+            assert_eq!(std::fs::read_to_string(&p).unwrap(), data);
+        }
+        assert!(!p.with_extension("json.tmp").exists());
+    }
+
     #[test]
     fn broken_file_gives_defaults() {
         let dir = tempfile::tempdir().unwrap();
