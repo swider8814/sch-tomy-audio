@@ -1,7 +1,7 @@
 // Main window: file list, drag and drop, processing controls.
 
 import { formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
-import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, tauriDialog, tauriOpener } from "./util.js";
+import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, setupScrollHints, setupTooltips, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
@@ -227,7 +227,7 @@ function createRow(id) {
       { class: "c-title" },
       fileName,
       sermon,
-      h("div", { class: "suffix-row" }, h("span", { class: "hint" }, "-"), suffix, info),
+      h("div", { class: "suffix-row" }, suffix, info),
       speakerHint,
     ),
     r.start,
@@ -256,7 +256,7 @@ function updateRow(job) {
     tip.push(`Tytuł w tagach MP3: ${job.title || "(pusty)"}`);
     if (job.status !== "done" && job.outputName) tip.push(`Nazwa pliku: ${job.outputName}`);
   }
-  r.info.title = tip.join("\n");
+  r.info.dataset.tip = tip.join("\n");
   r.info.setAttribute("aria-label", tip.join(". "));
   r.tr.hidden = !filterTest(app.filter)(job);
   renderSpeakerHint(r, job);
@@ -279,7 +279,7 @@ function updateRow(job) {
           {},
           h("span", { class: "time" }, job.start != null ? formatTime(job.start) : "00:00,0"),
           " ",
-          h("span", { class: `badge ${label.cls}`, title: label.title }, label.text),
+          h("span", { class: `badge ${label.cls}`, "data-tip": label.title, tabindex: 0 }, label.text),
         ),
         job.end != null ? h("div", { class: "hint" }, `Koniec: ${formatTime(job.end)}`) : null,
         h(
@@ -770,6 +770,8 @@ function setupButtons() {
 
 async function main() {
   setupButtons();
+  setupScrollHints();
+  setupTooltips();
   setupDragDrop();
   setupCloseGuard();
   await listen("jobs", (e) => setJobs(e.payload));

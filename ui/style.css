@@ -408,3 +408,29 @@ kbd {
   --toast-text: #111923;
   color-scheme: dark;
 }
+
+/* Always-visible scroll bars in dialogs: macOS hides overlay scroll bars
+   until you scroll, so long dialogs did not look scrollable. */
+.dialog-body::-webkit-scrollbar { width: 12px; }
+.dialog-body::-webkit-scrollbar-track { background: transparent; }
+.dialog-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; border: 3px solid var(--panel); }
+.dialog-body::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+button.scroll-hint { margin-right: auto; font-size: 0.9rem; text-decoration: none; }
+.more-below .dialog-buttons { box-shadow: 0 -10px 12px -10px var(--shadow); }
+
+/* instant tooltips (ui/js/util.js setupTooltips) */
+#tooltip {
+  position: fixed;
+  z-index: 100;
+  max-width: 380px;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  white-space: pre-line;
+  pointer-events: none;
+  box-shadow: 0 4px 16px var(--shadow);
+}
+.badge[data-tip], .info-dot { cursor: help; }
