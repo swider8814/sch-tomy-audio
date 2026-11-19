@@ -63,7 +63,7 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
 
 ## 5. Przygotowanie odcinków krok po kroku
 
-1. **Dodaj nagrania.** Przeciągnij pliki (albo cały folder) na pole „Przeciągnij pliki tutaj” albo kliknij **Wybierz pliki**. Możesz dodać wiele plików naraz.
+1. **Dodaj nagrania.** Przeciągnij pliki (albo cały folder) w dowolne miejsce okna aplikacji albo kliknij **Wybierz pliki**. Możesz dodać wiele plików naraz.
 2. **Poczekaj chwilę na analizę.** Aplikacja szuka początku kazania w każdym pliku. W kolumnie „Początek kazania” zobaczysz czas i jego źródło:
    * **wzorzec: nazwa** (zielone): znaleziono zapisaną zajawkę serii, start ustawiono zaraz po niej,
    * **propozycja, sprawdź** (żółte): automatyczna podpowiedź, którą warto sprawdzić,

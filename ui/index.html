@@ -17,10 +17,19 @@
 
     <div id="banners" aria-live="polite"></div>
 
+    <div id="drop-overlay" hidden aria-hidden="true">
+      <div class="drop-overlay-box">
+        <div class="drop-overlay-card">
+          <p class="big">Upuść, żeby dodać do listy</p>
+          <p class="hint">Nagrania audio i wideo, foldery albo plik .txt z linkami do YouTube</p>
+        </div>
+      </div>
+    </div>
+
     <main>
       <section id="drop" class="dropzone" aria-label="Dodawanie plików">
-        <p class="big">Przeciągnij pliki tutaj</p>
-        <p class="hint drop-more">Przeciągnij tu kolejne nagrania albo:</p>
+        <p class="big">Przeciągnij nagrania w dowolne miejsce okna</p>
+        <p class="hint drop-more">Przeciągnij kolejne nagrania w dowolne miejsce okna albo:</p>
         <p class="hint drop-formats">
           Nagrania MP3, WAV, M4A, MP4, MOV, WEBM i inne. Możesz przeciągnąć kilka plików naraz albo cały folder.
         </p>
@@ -61,7 +70,7 @@
         <div id="empty" class="empty-guide">
           <h2>Jak to działa</h2>
           <ol>
-            <li><b>Dodaj nagrania.</b> Przeciągnij pliki w ramkę powyżej, kliknij „Wybierz pliki” albo „Pobierz z YouTube”.</li>
+            <li><b>Dodaj nagrania.</b> Przeciągnij pliki w dowolne miejsce okna, kliknij „Wybierz pliki” albo „Pobierz z YouTube”.</li>
             <li>
               <b>Sprawdź początek i wpisz tytuł.</b> Aplikacja sama szuka początku kazania. Gdy ma tylko propozycję,
               kliknij „Sprawdź początek”. Kaznodzieję i datę odczyta z nazwy pliku.

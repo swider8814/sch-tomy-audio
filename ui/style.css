@@ -90,7 +90,6 @@ main { padding: 1rem 1.25rem 2rem; }
   text-align: center;
   transition: border-color 0.15s, background 0.15s;
 }
-.dropzone.over { border-color: var(--accent-2); background: var(--info-bg); }
 .dropzone .big { font-size: 1.3rem; font-weight: 600; margin: 0 0 0.3rem; }
 .hint { color: var(--muted); font-size: 0.88rem; }
 
@@ -291,3 +290,31 @@ kbd {
   font-size: 0.85rem;
   text-align: center;
 }
+
+/* shown while files are dragged over the window */
+#drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 34, 54, 0.6);
+  display: flex;
+  padding: 1.2rem;
+  pointer-events: none;
+}
+.drop-overlay-box {
+  flex: 1;
+  border: 3px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-overlay-card {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 1.4rem 2rem;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+.drop-overlay-card .big { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.4rem; color: var(--accent); }
+.drop-overlay-card p { margin: 0; }

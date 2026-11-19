@@ -534,14 +534,20 @@ async function showLog(id) {
   $("#logdlg").showModal();
 }
 
+/** Files can be dropped anywhere on the window; an overlay shows that while dragging. */
 function setupDragDrop() {
-  const zone = $("#drop");
+  const overlay = $("#drop-overlay");
+  const dialogOpen = () => !!document.querySelector("dialog[open]");
   currentWebview().onDragDropEvent((event) => {
     const p = event.payload;
-    if (p.type === "enter" || p.type === "over") zone.classList.add("over");
-    else if (p.type === "leave") zone.classList.remove("over");
+    if (p.type === "enter" || p.type === "over") overlay.hidden = dialogOpen();
+    else if (p.type === "leave") overlay.hidden = true;
     else if (p.type === "drop") {
-      zone.classList.remove("over");
+      overlay.hidden = true;
+      if (dialogOpen()) {
+        toast("Najpierw zamknij otwarte okno, a potem przeciągnij pliki.");
+        return;
+      }
       addPaths(p.paths ?? []);
     }
   });
