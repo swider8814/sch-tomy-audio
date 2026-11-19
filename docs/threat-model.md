@@ -129,7 +129,7 @@ calls privileged commands.
   `freezePrototype`, no remote content is loaded.
 * Capabilities are minimal (`core:default`, window destroy, dialog
   open/ask/message, opener reveal-in-folder and open-url limited to this
-  project's releases page); there is no generic shell/fs plugin. Commands validate
+  project's releases page and a `mailto:` link to the author); there is no generic shell/fs plugin. Commands validate
   their inputs (markers within duration, titles length-limited, pattern
   lengths bounded) and only operate on files the user added.
 

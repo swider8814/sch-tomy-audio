@@ -77,7 +77,8 @@ mod capability_tests {
         assert!(ui.contains("onCloseRequested"));
     }
 
-    /// Opening links is allowed only for this project's releases page, and
+    /// Opening links is allowed only for this project's releases page and an
+    /// e-mail to the author, and
     /// the only remote host the webview may contact is the GitHub API.
     #[test]
     fn links_and_network_are_narrow() {
@@ -98,7 +99,10 @@ mod capability_tests {
             .collect();
         assert_eq!(
             urls,
-            ["https://github.com/swider8814/sch-tomy-audio/releases*"]
+            [
+                "https://github.com/swider8814/sch-tomy-audio/releases*",
+                "mailto:daniel.swiderski@proem.pl*"
+            ]
         );
         assert!(!caps["permissions"]
             .as_array()

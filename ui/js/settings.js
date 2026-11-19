@@ -1,6 +1,6 @@
 // Settings dialog.
 
-import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog } from "./util.js";
+import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog, tauriOpener } from "./util.js";
 import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./app.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { formatTime } from "./format.js";
@@ -45,6 +45,7 @@ export function openSettings(tab = "basic") {
 }
 
 const TABS = ["basic", "sound", "advanced", "keys", "about"];
+const AUTHOR_MAIL = "mailto:daniel.swiderski@proem.pl?subject=SCh%20Tomy%20Podcast";
 
 function showTab(name) {
   for (const t of TABS) {
@@ -235,6 +236,11 @@ function setup() {
     ev.preventDefault();
   });
   $("#settings-cancel").addEventListener("click", () => dlg().close());
+  $("#author-mail").addEventListener("click", () =>
+    tauriOpener()
+      .openUrl(AUTHOR_MAIL)
+      .catch(() => toast("Nie udało się otworzyć programu pocztowego. Adres: daniel.swiderski@proem.pl")),
+  );
   $("#update-open").addEventListener("click", () => openReleasePage().catch(() => toast("Nie udało się otworzyć przeglądarki.")));
   $("#update-check").addEventListener("click", async () => {
     const status = $("#update-status");

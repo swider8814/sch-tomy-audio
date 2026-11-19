@@ -148,6 +148,7 @@ Wzorce możesz przejrzeć, zmienić im nazwę albo usunąć w **Ustawieniach**, 
 * „Nie udało się odczytać pliku”: sprawdź, czy to na pewno nagranie audio albo wideo i czy plik otwiera się w innym odtwarzaczu.
 * „Nie udało się zapisać wyniku”: sprawdź, czy folder wyjściowy istnieje i czy na dysku jest wolne miejsce.
 * Jeśli zamkniesz aplikację w trakcie obróbki, niedokończone pliki zostaną usunięte. Oryginały zostają nietknięte.
+* Kontakt z autorem aplikacji (Daniel Świderski, daniel.swiderski@proem.pl) znajdziesz w **Ustawieniach**, w zakładce **O programie**. Przy zgłaszaniu problemu podaj numer wersji z tej zakładki i dołącz log.
 
 ## 10. Nowa wersja aplikacji
 

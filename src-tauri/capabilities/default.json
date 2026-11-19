@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions of the main window. core:window:allow-destroy is required: closing the window runs a close guard (ui/js/app.js) and Tauri then calls destroy(). opener:allow-open-url is limited to this project's GitHub releases page (update check, ui/js/update.js).",
+  "description": "Permissions of the main window. core:window:allow-destroy is required: closing the window runs a close guard (ui/js/app.js) and Tauri then calls destroy(). opener:allow-open-url is limited to this project's GitHub releases page (update check, ui/js/update.js) and an e-mail to the author (settings, O programie).",
   "windows": [
     "main"
   ],
@@ -14,7 +14,10 @@
     "opener:allow-reveal-item-in-dir",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/swider8814/sch-tomy-audio/releases*" }]
+      "allow": [
+        { "url": "https://github.com/swider8814/sch-tomy-audio/releases*" },
+        { "url": "mailto:daniel.swiderski@proem.pl*" }
+      ]
     }
   ]
 }
