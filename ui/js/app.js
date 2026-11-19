@@ -1,6 +1,6 @@
 // Main window: file list, drag and drop, processing controls.
 
-import { formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
+import { formatDate, formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, setupScrollHints, setupTooltips, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
 import { openSettings } from "./settings.js";
@@ -330,6 +330,15 @@ function updateRow(job) {
     );
   }
   if (job.analysisNote) st.append(h("div", { class: "warn-text" }, job.analysisNote));
+  if (job.duplicate && job.status !== "done") {
+    st.append(
+      h(
+        "div",
+        { class: "warn-text", title: `Gotowy plik: ${job.duplicate.output}` },
+        `⚠ To nagranie przetworzono już ${formatDate(job.duplicate.processedAt)}.`,
+      ),
+    );
+  }
   r.status.append(st);
 
   // result
@@ -618,6 +627,7 @@ async function addYoutube(ev) {
     const parts = [];
     if (r.added) parts.push(`Dodano do pobrania: ${r.added}.`);
     if (r.skipped) parts.push(`Pominięto powtórzone: ${r.skipped}.`);
+    if (r.processedBefore) parts.push(`Wcześniej przetworzone (sprawdź, czy to nie pomyłka): ${r.processedBefore}.`);
     if (r.invalid.length) {
       $("#yt-error").textContent = `To nie są linki do filmów na YouTube (pominięto): ${r.invalid.slice(0, 5).join("; ")}${r.invalid.length > 5 ? "; ..." : ""}`;
     }

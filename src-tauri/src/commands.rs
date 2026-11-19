@@ -144,15 +144,27 @@ fn is_our_output(p: &Path) -> bool {
 #[tauri::command]
 pub fn add_files(app: AppHandle, state: St<'_>, paths: Vec<String>) -> usize {
     let files = expand(paths);
+    // Fingerprints are read without holding the lock.
+    let files: Vec<(PathBuf, Option<String>)> = files
+        .into_iter()
+        .map(|f| {
+            let key = podcast_core::history::file_key(&f).ok();
+            (f, key)
+        })
+        .collect();
     let mut g = state.lock();
     let mut added = 0;
-    for f in files {
+    for (f, key) in files {
         if g.jobs.iter().any(|j| j.view.path == f) {
             continue;
         }
         let id = g.next_id;
         g.next_id += 1;
-        g.jobs.push(Job::new(id, f));
+        let mut job = Job::new(id, f);
+        if let Some(key) = key {
+            job.view.duplicate = podcast_core::history::find(&g.history, &[key]).map(Into::into);
+        }
+        g.jobs.push(job);
         added += 1;
     }
     emit_jobs(&app, &g);
@@ -171,6 +183,8 @@ pub struct YoutubeAdded {
     invalid: Vec<String>,
     /// Folder the audio is saved to.
     dir: String,
+    /// Added, but processed before (see `JobView::duplicate`).
+    processed_before: usize,
 }
 
 /// Adds YouTube links (one per line; a single link works too). Each video
@@ -197,6 +211,7 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
     let mut g = state.lock();
     let mut added = 0;
     let mut skipped = list.duplicates;
+    let mut processed_before = 0;
     for id in &list.ids {
         let canonical = podcast_core::youtube::canonical_url(id);
         if g.jobs
@@ -208,7 +223,12 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
         }
         let job_id = g.next_id;
         g.next_id += 1;
-        g.jobs.push(Job::new_youtube(job_id, id));
+        let mut job = Job::new_youtube(job_id, id);
+        job.view.duplicate =
+            podcast_core::history::find(&g.history, &[podcast_core::history::youtube_key(id)])
+                .map(Into::into);
+        processed_before += usize::from(job.view.duplicate.is_some());
+        g.jobs.push(job);
         added += 1;
     }
     emit_jobs(&app, &g);
@@ -217,6 +237,7 @@ pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<Youtub
     Ok(YoutubeAdded {
         added,
         skipped,
+        processed_before,
         invalid,
         dir: state
             .youtube_dir(&state.lock().settings)

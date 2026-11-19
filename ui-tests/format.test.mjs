@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatTime, maMaja, parseTime, plNumber, plikow, startSourceLabel } from "../ui/js/format.js";
+import { formatDate, formatTime, maMaja, parseTime, plNumber, plikow, startSourceLabel } from "../ui/js/format.js";
 
 test("formatTime", () => {
   assert.equal(formatTime(0), "00:00,0");
@@ -62,4 +62,11 @@ test("start source labels avoid long dashes", () => {
   assert.match(startSourceLabel(jobs[1]).text, /Łaska/);
   assert.match(startSourceLabel(jobs[1]).title, /91%/);
   assert.match(startSourceLabel(jobs[2]).title, /45%/);
+});
+
+test("formatDate", () => {
+  // midday UTC, so the local date is the same in Polish time
+  assert.equal(formatDate(Date.UTC(2026, 10, 12, 12) / 1000), "12.11.2026");
+  assert.equal(formatDate(Date.UTC(2026, 0, 5, 12) / 1000), "05.01.2026");
+  assert.equal(formatDate(undefined), "");
 });

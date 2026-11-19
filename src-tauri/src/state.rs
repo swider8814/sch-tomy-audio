@@ -27,6 +27,8 @@ pub struct Inner {
     pub shutting_down: bool,
     /// Remembered speaker names, most recent first (`podcast_core::speakers`).
     pub speakers: Vec<String>,
+    /// Processed recordings, newest first (`podcast_core::history`).
+    pub history: Vec<podcast_core::history::Entry>,
 }
 
 pub struct AppState {
@@ -46,6 +48,7 @@ pub struct AppState {
     /// The job list of the previous session is restored from here.
     queue_path: PathBuf,
     pub speakers_path: PathBuf,
+    pub history_path: PathBuf,
 }
 
 /// How long the app waits on exit for workers to remove temporary files.
@@ -60,6 +63,8 @@ impl AppState {
         let queue_path = data_dir.join("queue.json");
         let speakers_path = data_dir.join("speakers.json");
         let speakers = podcast_core::speakers::load(&speakers_path);
+        let history_path = data_dir.join("history.json");
+        let history = podcast_core::history::load(&history_path);
         let jobs: Vec<Job> = std::fs::read(&queue_path)
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<JobView>>(&b).ok())
@@ -82,6 +87,7 @@ impl AppState {
                 patterns,
                 shutting_down: false,
                 speakers,
+                history,
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
@@ -95,6 +101,7 @@ impl AppState {
             workers: Mutex::new(Vec::new()),
             queue_path,
             speakers_path,
+            history_path,
         }
     }
 
@@ -459,7 +466,14 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 )
             }
         };
+        // Fingerprint for the "already processed" warning; read before taking
+        // the lock (it reads up to 2 MiB of the recording).
+        let file_key = result
+            .as_ref()
+            .ok()
+            .and_then(|_| podcast_core::history::file_key(&task.input.recording).ok());
         let mut done_speaker = None;
+        let mut done_entry = None;
         let mut g = state.lock();
         if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
             j.log = log;
@@ -468,8 +482,27 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 Ok(r) => {
                     j.view.status = Status::Done;
                     j.view.progress = 1.0;
+                    let output = r
+                        .output
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default();
                     j.view.result = Some(r);
                     done_speaker = podcast_core::speakers::speaker_of(&j.view.title_suffix);
+                    let mut keys: Vec<String> = file_key.into_iter().collect();
+                    if let Some(id) = j
+                        .view
+                        .source_url
+                        .as_deref()
+                        .and_then(|u| podcast_core::youtube::parse_video_id(u).ok())
+                    {
+                        keys.push(podcast_core::history::youtube_key(&id));
+                    }
+                    done_entry = Some(podcast_core::history::Entry {
+                        keys,
+                        processed_at: podcast_core::history::now(),
+                        output,
+                    });
                 }
                 Err(e) if e.is_cancelled() => {
                     j.view.status = Status::Cancelled;
@@ -482,6 +515,11 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
                 }
             }
             emit_job(&app, &j.view);
+        }
+        if let Some(entry) = done_entry {
+            podcast_core::history::record(&mut g.history, entry);
+            // Under the lock, like the speakers below: no lost updates.
+            let _ = podcast_core::history::save(&state.history_path, &g.history);
         }
         if let Some(name) = done_speaker {
             podcast_core::speakers::remember(&mut g.speakers, &name);

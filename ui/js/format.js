@@ -43,6 +43,14 @@ export function plNumber(v, digits = 1) {
   return v.toFixed(digits).replace(".", ",");
 }
 
+/** Unix seconds -> local date "12.11.2026". */
+export function formatDate(unixSeconds) {
+  if (!Number.isFinite(unixSeconds)) return "";
+  const d = new Date(unixSeconds * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
 /** Percent from 0..1. */
 export function percent(v) {
   return `${Math.round((v ?? 0) * 100)}%`;

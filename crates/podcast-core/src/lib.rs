@@ -6,6 +6,7 @@
 pub mod error;
 pub mod ffmpeg;
 pub mod filters;
+pub mod history;
 pub mod naming;
 pub mod parse;
 pub mod pcm;
