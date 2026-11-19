@@ -25,8 +25,14 @@ pub fn ffmpeg(args: &[&str]) {
 }
 
 /// One piece of a synthetic recording.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Piece {
+    /// Music-like "series teaser": deterministic chords, vibrato, noise hits.
+    Teaser(f64),
+    /// An existing audio file (e.g. the speech fixture), whole.
+    File(PathBuf),
+    /// Another piece with a gain change in dB.
+    Gain(Box<Piece>, f64),
     /// Speech-like signal: pink noise with a syllable-rate amplitude envelope.
     Speech(f64),
     /// Digital silence.
@@ -37,8 +43,16 @@ pub enum Piece {
     Noise(f64),
 }
 
-fn piece_source(p: Piece, seed: usize) -> (String, f64) {
-    match p {
+fn piece_source(p: &Piece, seed: usize) -> (String, f64) {
+    match *p {
+        Piece::Teaser(d) => (
+            format!(
+                "aevalsrc='0.18*sin(2*PI*(220+15*sin(2*PI*0.7*t))*t)+0.15*sin(2*PI*330*t)*(0.5+0.5*sin(2*PI*1.5*t))+0.12*sin(2*PI*(440+110*floor(mod(t*2,4)))*t)+0.08*(random(0)-0.5)*lt(mod(t,0.5),0.05)':s=44100:d={}",
+                secs(d)
+            ),
+            d,
+        ),
+        Piece::File(_) | Piece::Gain(..) => unreachable!(),
         Piece::Speech(d) => (
             format!(
                 "anoisesrc=color=pink:amplitude=0.25:seed={}:sample_rate=44100:duration={},lowpass=f=6000,volume='0.55+0.45*sin(2*PI*4*t)':eval=frame",
@@ -63,10 +77,21 @@ fn piece_source(p: Piece, seed: usize) -> (String, f64) {
 /// Builds an audio file from pieces (mono 44.1 kHz), encoded by extension.
 pub fn make_audio(path: &Path, pieces: &[Piece]) {
     let mut graph = String::new();
+    let mut inputs: Vec<String> = Vec::new();
+    fn chain(p: &Piece, i: usize, inputs: &mut Vec<String>) -> String {
+        match p {
+            Piece::File(f) => {
+                inputs.push(f.to_string_lossy().into_owned());
+                format!("[{}:a]aresample=44100", inputs.len() - 1)
+            }
+            Piece::Gain(inner, g) => format!("{},volume={}dB", chain(inner, i, inputs), g),
+            other => piece_source(other, i).0,
+        }
+    }
     for (i, p) in pieces.iter().enumerate() {
-        let (src, _) = piece_source(*p, i);
+        let src = chain(p, i, &mut inputs);
         graph.push_str(&format!(
-            "{src},aformat=sample_fmts=fltp:channel_layouts=mono[p{i}];"
+            "{src},aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=mono[p{i}];"
         ));
     }
     for i in 0..pieces.len() {
@@ -74,7 +99,11 @@ pub fn make_audio(path: &Path, pieces: &[Piece]) {
     }
     graph.push_str(&format!("concat=n={}:v=0:a=1[out]", pieces.len()));
     let p = path.to_string_lossy().into_owned();
-    let mut args = vec!["-filter_complex", &graph, "-map", "[out]"];
+    let mut args: Vec<&str> = Vec::new();
+    for i in &inputs {
+        args.extend(["-i", i.as_str()]);
+    }
+    args.extend(["-filter_complex", &graph, "-map", "[out]"]);
     if p.ends_with(".mp3") {
         args.extend(["-c:a", "libmp3lame", "-b:a", "192k"]);
     }
@@ -145,6 +174,10 @@ impl TestDir {
     pub fn path(&self, name: &str) -> PathBuf {
         self.dir.path().join(name)
     }
+}
+
+pub fn speech_fixture() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/mowa-espeak.opus")
 }
 
 pub fn approx(a: f64, b: f64, tol: f64) -> bool {

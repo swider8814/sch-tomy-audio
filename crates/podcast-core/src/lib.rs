@@ -13,6 +13,8 @@ pub mod pipeline;
 pub mod probe;
 pub mod settings;
 pub mod tags;
+pub mod teaser;
+pub mod vad;
 
 pub use error::{CoreError, ErrorKind, Result};
 pub use ffmpeg::{CancelToken, Tools};
