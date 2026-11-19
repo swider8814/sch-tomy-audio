@@ -17,9 +17,11 @@ export function playingKey() {
   return current?.key ?? loading;
 }
 
+/** Stops playback and drops a load still in progress (its result is ignored). */
 export function stopResult() {
   const c = current;
   current = null;
+  loading = null;
   if (c) {
     try {
       c.source.stop();

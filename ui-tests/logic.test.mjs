@@ -142,6 +142,8 @@ test("suffix and speaker suggestions", () => {
   assert.deepEqual(splitSuffix("Adam Szumorek - 2026.10.11"), { name: "Adam Szumorek", date: "2026.10.11" });
   assert.deepEqual(splitSuffix("Ewa Kowalska 06.09.2026"), { name: "Ewa Kowalska", date: "06.09.2026" });
   assert.deepEqual(splitSuffix("Jan Nowak"), { name: "Jan Nowak", date: "" });
+  assert.deepEqual(splitSuffix("Ewa Kowalska 2026-11-15"), { name: "Ewa Kowalska", date: "2026-11-15" });
+  assert.deepEqual(splitSuffix("Ewa Kowalska - 15-11-2026"), { name: "Ewa Kowalska", date: "15-11-2026" });
   assert.deepEqual(splitSuffix(" - 2026.10.11"), { name: "", date: "2026.10.11" });
   const known = ["Adam Szumorek", "Rafał Piekarski", "Jan Nowak"];
   assert.equal(similarSpeaker("Adam Szumorek", known), null); // exact

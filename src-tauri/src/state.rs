@@ -485,14 +485,13 @@ fn processing_worker(app: AppHandle, state: Arc<AppState>, slot: usize) {
         }
         if let Some(name) = done_speaker {
             podcast_core::speakers::remember(&mut g.speakers, &name);
-            let list = g.speakers.clone();
-            drop(g);
-            // A failed save only means the name is not remembered next time.
-            let _ = podcast_core::speakers::save(&state.speakers_path, &list);
-            let _ = app.emit("speakers", &list);
-        } else {
-            drop(g);
+            // Saved and sent while holding the lock: two workers finishing at
+            // once cannot overwrite each other's update. A failed save only
+            // means the name is not remembered next time.
+            let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+            let _ = app.emit("speakers", &g.speakers);
         }
+        drop(g);
         state.wake.notify_all();
     }
 }

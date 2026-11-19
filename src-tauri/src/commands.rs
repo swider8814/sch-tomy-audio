@@ -445,17 +445,7 @@ pub fn get_preview(
     let token = state.preview_token();
     let res = podcast_core::pcm::decode_wav(tools, &path, start, len, preview_rate(len), &token);
     state.finish_preview(&token);
-    res.map(tauri::ipc::Response::new).map_err(|e| {
-        if e.is_cancelled() {
-            "Anulowano.".to_string()
-        } else {
-            format!(
-                "{} ({})",
-                e.user_message(),
-                e.details.lines().next().unwrap_or("")
-            )
-        }
-    })
+    res.map(tauri::ipc::Response::new).map_err(preview_error)
 }
 
 /// Seconds of a finished file played by "Posłuchaj początku" (intro, pause
@@ -496,17 +486,17 @@ pub fn get_result_preview(
     let token = state.preview_token();
     let res = podcast_core::pcm::decode_wav(tools, &path, start, len, PREVIEW_RATE, &token);
     state.finish_preview(&token);
-    res.map(tauri::ipc::Response::new).map_err(|e| {
-        if e.is_cancelled() {
-            "Anulowano.".to_string()
-        } else {
-            format!(
-                "{} ({})",
-                e.user_message(),
-                e.details.lines().next().unwrap_or("")
-            )
-        }
-    })
+    res.map(tauri::ipc::Response::new).map_err(preview_error)
+}
+
+/// Friendly Polish message for a failed preview decode. The ffmpeg details
+/// are not shown to the user (a preview has no log of its own).
+fn preview_error(e: podcast_core::CoreError) -> String {
+    if e.is_cancelled() {
+        "Anulowano.".to_string()
+    } else {
+        e.user_message()
+    }
 }
 
 /// Start and length of the part played by `get_result_preview`.
@@ -527,14 +517,12 @@ pub fn result_preview_range(part: &str, duration: f64) -> (f64, f64) {
 /// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {
-    let list = {
-        let mut g = state.lock();
-        podcast_core::speakers::forget(&mut g.speakers, &name);
-        g.speakers.clone()
-    };
-    let _ = podcast_core::speakers::save(&state.speakers_path, &list);
-    let _ = app.emit("speakers", &list);
-    list
+    let mut g = state.lock();
+    podcast_core::speakers::forget(&mut g.speakers, &name);
+    // Saved and sent under the lock, so a concurrent update cannot be overwritten.
+    let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
+    let _ = app.emit("speakers", &g.speakers);
+    g.speakers.clone()
 }
 
 /// Stops preview decodes (called when the editor closes).

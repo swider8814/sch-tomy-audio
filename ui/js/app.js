@@ -405,9 +405,9 @@ function renderToolbar() {
   const active = processing + queued;
   if (active > 0) {
     // A run lasts from the first queued file until nothing is queued or processing.
-    if (!app.run) app.run = { started: Date.now(), ids: new Set() };
+    if (!app.run) app.run = { started: Date.now(), ids: new Set(), last: new Map() };
     for (const j of jobs) if (j.status === "processing" || j.status === "queued") app.run.ids.add(j.id);
-    const runJobs = [...app.run.ids].map((id) => app.jobs.get(id)).filter(Boolean);
+    const runJobs = runJobsOf(app.run);
     const fraction = runFraction(runJobs);
     const finished = runJobs.filter((j) => j.status === "done").length;
     const pct = Math.round(fraction * 100);
@@ -421,9 +421,23 @@ function renderToolbar() {
   }
 }
 
+/**
+ * Jobs of a run with their latest state. A row removed meanwhile (e.g. "Usuń
+ * gotowe z listy") keeps its last known state, so totals stay right.
+ */
+function runJobsOf(run) {
+  return [...run.ids]
+    .map((id) => {
+      const j = app.jobs.get(id);
+      if (j) run.last.set(id, { id, status: j.status, progress: j.progress });
+      return run.last.get(id);
+    })
+    .filter(Boolean);
+}
+
 /** Called when the last file of a run is finished: message and system notification. */
 function finishRun() {
-  const runJobs = [...app.run.ids].map((id) => app.jobs.get(id)).filter(Boolean);
+  const runJobs = runJobsOf(app.run);
   app.run = null;
   const done = runJobs.filter((j) => j.status === "done").length;
   const failed = runJobs.filter((j) => j.status === "error").length;

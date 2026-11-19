@@ -159,7 +159,8 @@ export function formatEta(seconds) {
 /** "Adam Szumorek - 2026.10.11" -> { name: "Adam Szumorek", date: "2026.10.11" }. */
 export function splitSuffix(suffix) {
   const s = String(suffix ?? "").trim();
-  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}\.\d{2}\.\d{2}|\d{2}\.\d{2}\.\d{4})$/.exec(s);
+  // same date forms as the backend: 2026.11.08, 2026-11-08, 08.11.2026, 08-11-2026
+  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{2}[.-]\d{2}|\d{2}[.-]\d{2}[.-]\d{4})$/.exec(s);
   if (m) return { name: m[1].trim().replace(/[-\s]+$/, ""), date: m[2] };
   return { name: s, date: "" };
 }
