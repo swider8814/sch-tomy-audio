@@ -498,7 +498,7 @@ function finishRun() {
     ? `Gotowe: ${done} ${plikow(done)}. Z błędem: ${failed} ${plikow(failed)}.`
     : `Gotowe: ${done} ${plikow(done)}. Pliki MP3 czekają w folderze wyników.`;
   toast(body, 6000);
-  if (app.settings?.notify_done && !document.hasFocus()) notify("Obróbka zakończona", body);
+  if (app.settings?.notify_done) notify("Obróbka zakończona", body);
 }
 
 async function notify(title, body) {

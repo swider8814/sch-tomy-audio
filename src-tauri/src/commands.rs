@@ -673,6 +673,8 @@ pub struct SpeakersAdded {
     speakers: Vec<String>,
     added: usize,
     found: usize,
+    /// Some names were not added because the list is full.
+    full: bool,
 }
 
 /// Adds speaker names pasted or loaded from a file (one per line).
@@ -681,12 +683,14 @@ pub fn add_speakers(app: AppHandle, state: St<'_>, text: String) -> SpeakersAdde
     let names = podcast_core::speakers::parse_list(&text);
     let mut g = state.lock();
     let added = podcast_core::speakers::add_all(&mut g.speakers, &names);
+    let missing = podcast_core::speakers::missing(&g.speakers, &names);
     let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
     let _ = app.emit("speakers", &g.speakers);
     SpeakersAdded {
         speakers: g.speakers.clone(),
         added,
         found: names.len(),
+        full: !missing.is_empty(),
     }
 }
 

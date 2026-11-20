@@ -520,7 +520,7 @@ mod tests {
         assert_eq!(plain.title_suffix(&[]), "2026.11.03");
         // a bad date in the description falls back to the upload date
         let bad = parse_metadata(
-            r#"{"id":"a","title":"T","upload_date":"20261103","description":"Data: wkrótce\nData: 45.13.2026"}"#,
+            r#"{"id":"a","title":"T","upload_date":"20261103","description":"Data: wkrótce\nData: 45.13.2026\nData: 31.02.2026"}"#,
         )
         .unwrap();
         assert_eq!(bad.title_suffix(&[]), "2026.11.03");

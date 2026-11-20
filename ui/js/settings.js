@@ -194,6 +194,8 @@ function patternButton(label, cls, onclick) {
   return h("button", { type: "button", class: cls, onclick }, label);
 }
 
+const FULL_LIST = "Lista mówców jest pełna (300 nazwisk). Usuń z niej nieużywane nazwiska i dodaj pozostałe jeszcze raz.";
+
 async function addSpeakers() {
   const status = $("#speaker-status");
   const text = $("#speaker-text").value;
@@ -205,6 +207,10 @@ async function addSpeakers() {
     const r = await invoke("add_speakers", { text });
     app.speakers = r.speakers;
     renderSpeakers();
+    if (r.full) {
+      status.textContent = `Dodano: ${r.added}. ${FULL_LIST}`;
+      return;
+    }
     status.textContent = r.added
       ? `Dodano: ${r.added}.${r.found > r.added ? ` Pominięto (już są na liście): ${r.found - r.added}.` : ""}`
       : "Wszystkie te nazwiska są już na liście.";
@@ -443,6 +449,13 @@ function setup() {
       if ($("#speaker-text").value.trim()) {
         const r = await invoke("add_speakers", { text: $("#speaker-text").value });
         app.speakers = r.speakers;
+        if (r.full) {
+          // settings are saved; the names that did not fit stay in the box
+          renderSpeakers();
+          showTab("advanced");
+          $("#speaker-status").textContent = `Ustawienia zapisane. Dodano mówców: ${r.added}. ${FULL_LIST}`;
+          return;
+        }
         $("#speaker-text").value = "";
         added = r.added ? ` Dodano mówców: ${r.added}.` : "";
       }

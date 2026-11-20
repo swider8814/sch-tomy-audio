@@ -139,7 +139,15 @@ pub fn date_from_name(name: &str) -> Option<(i32, u32, u32)> {
         .unwrap()
     });
     let valid = |y: i32, m: u32, d: u32| {
-        ((1..=12).contains(&m) && (1..=31).contains(&d)).then_some((y, m, d))
+        let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+        let days = match m {
+            1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+            4 | 6 | 9 | 11 => 30,
+            2 if leap => 29,
+            2 => 28,
+            _ => 0,
+        };
+        (1..=days).contains(&d).then_some((y, m, d))
     };
     if let Some(c) = ymd.captures(name) {
         if let Some(v) = valid(c[1].parse().ok()?, c[2].parse().ok()?, c[3].parse().ok()?) {
@@ -458,6 +466,12 @@ mod tests {
         assert_eq!(date_from_name("30.11.2025-mac"), Some((2025, 11, 30)));
         assert_eq!(date_from_name("2025_1_5"), Some((2025, 1, 5)));
         assert_eq!(date_from_name("2025.13.40"), None);
+        // real calendar days only
+        assert_eq!(date_from_name("31.02.2026"), None);
+        assert_eq!(date_from_name("2026.04.31"), None);
+        assert_eq!(date_from_name("29.02.2026"), None);
+        assert_eq!(date_from_name("29.02.2028"), Some((2028, 2, 29)));
+        assert_eq!(date_from_name("2026.12.31"), Some((2026, 12, 31)));
         assert_eq!(date_from_name("bez daty"), None);
     }
 

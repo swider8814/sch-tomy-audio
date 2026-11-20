@@ -253,8 +253,10 @@ programie (version, update check). A validation error switches to its tab.
     Audio only (`bestaudio[ext=m4a]/bestaudio`, no conversion), saved to
     `Downloads/SCh Tomy YouTube`, one download at a time; title prefilled
     from the video. Since v0.1.6 the description is fetched too:
-    `speakers::find_in_text` takes a remembered speaker mentioned in it
-    (earliest, whole words, case and Polish letters ignored), else a
+    `speakers::find_in_text` takes the first speaker mentioned in it:
+    a remembered name (whole words, case and Polish letters ignored) or a
     capitalised name after a cue word ("wprowadził nas Jerzy Sikora",
-    "Mówca: ...", "wygłosił pastor ..."); the date comes from a
-    "Data: 01.11.2026" line, else the upload date.
+    "Mówca: ...", "wygłosił pastor ..."), in the remembered spelling when
+    known; the date comes from a "Data: 01.11.2026" line (a real calendar
+    date), else the upload date. Similar names are all remembered (two
+    people can differ by one letter); the UI marks such pairs instead.

@@ -57,52 +57,16 @@ fn key(name: &str) -> String {
 }
 
 /// Puts `name` first (once, case-insensitively; the new spelling wins) and
-/// keeps at most [`MAX_SPEAKERS`] names. A name that looks like a typo of a
-/// remembered one ("Rafał Piekarsi" next to "Rafał Piekarski") is not added,
-/// so a misspelt episode does not spoil the list.
+/// keeps at most [`MAX_SPEAKERS`] names. Similar names are kept (two people
+/// can differ by one letter); the UI marks such pairs so a typo can be removed.
 pub fn remember(list: &mut Vec<String>, name: &str) {
     let k = key(name);
     if k.is_empty() {
         return;
     }
-    let known = list.iter().any(|n| key(n) == k);
-    if !known && list.iter().any(|n| looks_like_typo(name, n)) {
-        return;
-    }
     list.retain(|n| key(n) != k);
     list.insert(0, name.split_whitespace().collect::<Vec<_>>().join(" "));
     list.truncate(MAX_SPEAKERS);
-}
-
-/// Same rule as `similarSpeaker` in the UI: after folding case, spaces and
-/// Polish letters, at most 1 edit apart (2 for names of 10 or more
-/// characters), but not the same name.
-pub fn looks_like_typo(a: &str, b: &str) -> bool {
-    if key(a) == key(b) {
-        return false;
-    }
-    let fa: Vec<char> = fold(&key(a)).chars().collect();
-    let fb: Vec<char> = fold(&key(b)).chars().collect();
-    if fa.len() < 4 {
-        return false;
-    }
-    let limit = if fa.len() >= 10 { 2 } else { 1 };
-    if fa.len().abs_diff(fb.len()) > limit {
-        return false;
-    }
-    let mut prev: Vec<usize> = (0..=fb.len()).collect();
-    for (i, ca) in fa.iter().enumerate() {
-        let mut cur = vec![i + 1];
-        for (j, cb) in fb.iter().enumerate() {
-            cur.push(
-                (prev[j + 1] + 1)
-                    .min(cur[j] + 1)
-                    .min(prev[j] + usize::from(ca != cb)),
-            );
-        }
-        prev = cur;
-    }
-    prev[fb.len()] <= limit
 }
 
 /// Names from pasted text or a .txt file: one per line. Bullets ("-", "*",
@@ -153,6 +117,15 @@ pub fn add_all(list: &mut Vec<String>, names: &[String]) -> usize {
     added
 }
 
+/// Names from `names` that are not on the list (e.g. because it is full).
+pub fn missing(list: &[String], names: &[String]) -> Vec<String> {
+    names
+        .iter()
+        .filter(|n| !list.iter().any(|o| key(o) == key(n)))
+        .cloned()
+        .collect()
+}
+
 /// Lower case ASCII form for matching names in free text ("Rafał" and
 /// "rafal" match).
 fn fold(text: &str) -> String {
@@ -168,22 +141,40 @@ fn fold(text: &str) -> String {
         .collect()
 }
 
-/// Finds a speaker in a text such as a YouTube description: first a known
-/// name (the one mentioned earliest, as whole words), otherwise a capitalised
-/// first name and surname after a word that introduces the speaker, as in
-/// "Do nowej serii kazań wprowadził nas Jerzy Sikora", "Kazanie wygłosił
-/// pastor Jan Nowak" or "Mówca: Ewa Kowalska".
+/// Finds a speaker in a text such as a YouTube description: the first one
+/// mentioned, either a known name (as whole words) or a capitalised first
+/// name and surname after a word that introduces the speaker, as in "Do nowej
+/// serii kazań wprowadził nas Jerzy Sikora", "Kazanie wygłosił pastor Jan
+/// Nowak" or "Mówca: Ewa Kowalska". A name found after such a word is given
+/// in its remembered spelling when it is a known speaker.
 pub fn find_in_text(text: &str, known: &[String]) -> Option<String> {
     let text: String = text.chars().take(20_000).collect();
-    known_in_text(&text, known).or_else(|| introduced_in_text(&text))
+    for line in text.lines() {
+        let found = match (known_in_line(line, known), introduced_in_line(line)) {
+            (Some(k), Some(c)) => Some(if c.0 < k.0 { c.1 } else { k.1 }),
+            (k, c) => k.or(c).map(|(_, name)| name),
+        };
+        if let Some(name) = found {
+            let folded = fold(&key(&name));
+            return Some(
+                known
+                    .iter()
+                    .find(|k| fold(&key(k)) == folded)
+                    .cloned()
+                    .unwrap_or(name),
+            );
+        }
+    }
+    None
 }
 
-fn known_in_text(text: &str, known: &[String]) -> Option<String> {
-    let folded = fold(text);
+/// Earliest known name in `line`: (character position, name).
+fn known_in_line(line: &str, known: &[String]) -> Option<(usize, String)> {
+    let folded = fold(line);
     let bytes = folded.as_bytes();
     let mut best: Option<(usize, &String)> = None;
     for name in known {
-        let needle = fold(name.trim());
+        let needle = fold(&key(name));
         if needle.len() < 3 {
             continue;
         }
@@ -202,7 +193,7 @@ fn known_in_text(text: &str, known: &[String]) -> Option<String> {
             from = at + 1;
         }
     }
-    best.map(|(_, name)| name.clone())
+    best.map(|(at, name)| (at, name.clone()))
 }
 
 /// Words (lower case, without Polish letters) after which the speaker's name
@@ -246,40 +237,50 @@ const TITLES: [&str; 9] = [
     "pastor", "pastorka", "brat", "br.", "siostra", "s.", "ks.", "dr", "dr.",
 ];
 
-fn introduced_in_text(text: &str) -> Option<String> {
-    for line in text.lines() {
-        let words: Vec<&str> = line.split_whitespace().collect();
-        for (i, w) in words.iter().enumerate() {
-            // "Mówca:" ends with a colon; "nas," does not introduce anyone
-            let cue = w.strip_suffix(':').unwrap_or(w);
-            if !CUES.contains(&fold(cue).as_str()) {
-                continue;
+/// Name after a cue word in `line`: (character position, name).
+fn introduced_in_line(line: &str) -> Option<(usize, String)> {
+    let words: Vec<(usize, &str)> = line
+        .split(' ')
+        .scan(0usize, |pos, w| {
+            let at = *pos;
+            *pos += w.chars().count() + 1;
+            Some((at, w))
+        })
+        .filter(|(_, w)| !w.trim().is_empty())
+        .map(|(at, w)| (at, w.trim()))
+        .collect();
+    for (i, (_, w)) in words.iter().enumerate() {
+        // "Mówca:" ends with a colon; "nas," does not introduce anyone
+        let cue = w.strip_suffix(':').unwrap_or(w);
+        if !CUES.contains(&fold(cue).as_str()) {
+            continue;
+        }
+        let mut rest = words[i + 1..]
+            .iter()
+            .copied()
+            .skip_while(|(_, w)| matches!(*w, ":" | "-"))
+            .peekable();
+        while rest
+            .peek()
+            .is_some_and(|(_, w)| TITLES.contains(&fold(w).as_str()))
+        {
+            rest.next();
+        }
+        let mut name: Vec<&str> = Vec::new();
+        let mut start = None;
+        for (at, w) in rest {
+            let bare = w.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\u{201d}']);
+            if !is_name_word(bare) || name.len() == 3 {
+                break;
             }
-            let mut rest = words[i + 1..]
-                .iter()
-                .copied()
-                .skip_while(|w| matches!(*w, ":" | "-"))
-                .peekable();
-            while rest
-                .peek()
-                .is_some_and(|w| TITLES.contains(&fold(w).as_str()))
-            {
-                rest.next();
+            start.get_or_insert(at);
+            name.push(bare);
+            if bare.len() != w.len() {
+                break; // punctuation ends the name
             }
-            let mut name: Vec<&str> = Vec::new();
-            for w in rest {
-                let bare = w.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\u{201d}']);
-                if !is_name_word(bare) || name.len() == 3 {
-                    break;
-                }
-                name.push(bare);
-                if bare.len() != w.len() {
-                    break; // punctuation ends the name
-                }
-            }
-            if name.len() >= 2 {
-                return Some(name.join(" "));
-            }
+        }
+        if name.len() >= 2 {
+            return Some((start.unwrap_or(0), name.join(" ")));
         }
     }
     None
@@ -369,7 +370,6 @@ mod tests {
         assert_eq!(l.len(), 3);
         forget(&mut l, "JAN NOWAK");
         assert_eq!(l, ["Adam Szumorek", "ewa kowalska"]);
-        // clearly different names (a typo of a remembered one is not added)
         let name = |i: u32| {
             let (x, y) = (
                 char::from(b'a' + (i / 26) as u8),
@@ -382,6 +382,21 @@ mod tests {
         }
         assert_eq!(l.len(), MAX_SPEAKERS);
         assert_eq!(l[0], name(399));
+    }
+
+    #[test]
+    fn names_that_did_not_fit() {
+        let mut l: Vec<String> = (0..MAX_SPEAKERS - 1)
+            .map(|i| format!("Osoba {i}"))
+            .collect();
+        let new = vec![
+            "Osoba 1".to_string(),
+            "Jan Nowak".to_string(),
+            "Ewa Lis".to_string(),
+        ];
+        assert_eq!(add_all(&mut l, &new), 1);
+        assert_eq!(missing(&l, &new), ["Ewa Lis"]);
+        assert!(missing(&l, &new[..2]).is_empty());
     }
 
     #[test]
@@ -405,19 +420,10 @@ mod tests {
     }
 
     #[test]
-    fn a_typo_of_a_remembered_speaker_is_not_remembered() {
-        let mut l = vec!["Rafał Piekarski".to_string(), "Jan Nowak".to_string()];
-        assert!(looks_like_typo("Rafał Piekarsi", "Rafał Piekarski"));
-        assert!(looks_like_typo("rafal piekarski", "Rafał Piekarski"));
-        assert!(!looks_like_typo("Rafał Piekarski", "Rafał Piekarski"));
-        assert!(!looks_like_typo("Anna Nowak", "Jan Nowak"));
-        assert!(!looks_like_typo("Mac Johnson", "Jim Johnson"));
-        remember(&mut l, "Rafał Piekarsi");
-        assert_eq!(l, ["Rafał Piekarski", "Jan Nowak"]);
-        // the exact name still moves to the front, a new person is added
-        remember(&mut l, "Jan Nowak");
-        remember(&mut l, "Jerzy Sikora");
-        assert_eq!(l, ["Jerzy Sikora", "Jan Nowak", "Rafał Piekarski"]);
+    fn similar_names_are_both_remembered() {
+        let mut l = vec!["Anna Nowak".to_string()];
+        remember(&mut l, "Hanna Nowak");
+        assert_eq!(l, ["Hanna Nowak", "Anna Nowak"]);
     }
 
     #[test]
@@ -454,6 +460,25 @@ mod tests {
         assert_eq!(
             find_in_text("Mówi Leonid Matseyka. Modlitwa: Adam Szumorek", &known).as_deref(),
             Some("Leonid Matseyka")
+        );
+        // a labelled new speaker is not replaced by a known name mentioned later
+        assert_eq!(
+            find_in_text("Mówca: Jerzy Sikora\nModlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Jerzy Sikora")
+        );
+        assert_eq!(
+            find_in_text("Mówca: Jerzy Sikora, modlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Jerzy Sikora")
+        );
+        // ... but a known name mentioned first still wins
+        assert_eq!(
+            find_in_text("Adam Szumorek zaprasza. Zaprasza nas Kościół Wolny", &known).as_deref(),
+            Some("Adam Szumorek")
+        );
+        // a labelled known speaker gets the remembered spelling
+        assert_eq!(
+            find_in_text("Kazanie wygłosił Rafal Piekarski", &known).as_deref(),
+            Some("Rafał Piekarski")
         );
         // not part of another word
         assert_eq!(find_in_text("Adam Szumorekowski", &known), None);
