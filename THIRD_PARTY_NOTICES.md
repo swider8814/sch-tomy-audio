@@ -56,5 +56,6 @@ The application is built with Tauri (MIT/Apache-2.0), tract (MIT/Apache-2.0),
 rustfft (MIT/Apache-2.0), id3 (MIT), serde (MIT/Apache-2.0), regex
 (MIT/Apache-2.0), chrono (MIT/Apache-2.0), deunicode (BSD-3-Clause), ureq
 (MIT/Apache-2.0), rustls (Apache-2.0/ISC/MIT), ring (Apache-2.0 and ISC),
-num-bigint (MIT/Apache-2.0) and their dependencies; see `Cargo.lock` for the full list and versions. Their licences
+num-bigint (MIT/Apache-2.0), tauri-plugin-window-state (MIT/Apache-2.0) and
+their dependencies; see `Cargo.lock` for the full list and versions. Their licences
 are permissive and are available in each crate's source distribution.

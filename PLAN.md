@@ -193,6 +193,10 @@ docs/threat-model.md
   (since v0.1.6 also when the window is focused; a test button in the
   settings). On desktop the plugin's permission calls are no-ops: macOS
   asks on the first notification.
+* **Window position (v0.1.8):** `tauri-plugin-window-state` saves the
+  window's position, size and maximised state on exit
+  (`<config>/.window-state.json`) and restores them at start; a position
+  that is on no connected monitor is skipped. No JS permissions needed.
 * **Speaker suggestions (v0.1.4):** the speaker of every finished episode
   (`speakers::speaker_of` on the "speaker - date" field) is remembered in
   `speakers.json` in the data folder (max 300, most recent first). The
