@@ -44,6 +44,10 @@ pub enum StartSource {
 pub struct ErrorView {
     pub message: String,
     pub details: String,
+    /// A failed YouTube download where updating yt-dlp may help: the UI
+    /// offers "Zaktualizuj narzędzie".
+    #[serde(default)]
+    pub can_update_tool: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +232,7 @@ impl Job {
             view.error = Some(ErrorView {
                 message: "Nie znaleziono tego nagrania na dysku (zostało przeniesione albo usunięte). Usuń je z listy i dodaj ponownie.".into(),
                 details: view.path.display().to_string(),
+                can_update_tool: false,
             });
         }
         let analysed = view.duration.is_some() && view.status != Status::Analyzing;
@@ -316,6 +321,19 @@ mod tests {
             end: 42.0,
             confidence: conf,
         }
+    }
+
+    #[test]
+    fn error_view_from_an_older_version() {
+        // queue.json written before v0.1.7 has no canUpdateTool
+        let e: ErrorView = serde_json::from_str(r#"{"message":"m","details":"d"}"#).unwrap();
+        assert!(!e.can_update_tool);
+        let json = serde_json::to_value(ErrorView {
+            can_update_tool: true,
+            ..e
+        })
+        .unwrap();
+        assert_eq!(json["canUpdateTool"], true);
     }
 
     #[test]

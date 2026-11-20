@@ -5,7 +5,8 @@
 SCh Tomy Audio is a local desktop application (Tauri 2: Rust backend,
 HTML/JS frontend in the system webview). There is no server, no account, no
 telemetry and no network access in stage 1 (stage 2 adds the YouTube
-download and the update check, T11 and T12). The user drops audio/video files;
+download and the update check, T11 and T12; v0.1.7 the yt-dlp update after
+a failed download, T14). The user drops audio/video files;
 the app runs bundled `ffmpeg`/`ffprobe` executables as child processes and
 writes MP3 files to a folder.
 
@@ -26,6 +27,7 @@ Trust boundaries:
 5. Build pipeline (GitHub Actions) and dependencies (crates, npm).
 6. Stage 2: YouTube URLs and the bundled yt-dlp.
 7. The update check: the answer of the GitHub API.
+8. The yt-dlp update: files from the yt-dlp GitHub releases.
 
 ## Threats and mitigations
 
@@ -218,7 +220,8 @@ hanging downloads.
   binaries and Deno 2.9.7 official release zips, URL + SHA-256 in
   `scripts/ffmpeg-sources.json` (sums equal upstream `SHA2-256SUMS` /
   `.sha256sum`). yt-dlp gets the bundled Deno via `--js-runtimes deno:<path>`;
-  no remote components are enabled and there is no self-update.
+  no remote components are enabled and yt-dlp never updates itself (its own
+  `-U` is not used); a newer yt-dlp only comes through T14.
 * Downloads run in a single worker, are cancellable, and cancelling kills
   the whole process tree (`ffmpeg::kill_tree`: own process group on Unix,
   `taskkill /T` on Windows) because the standalone yt-dlp builds start a
@@ -227,8 +230,7 @@ hanging downloads.
 
 *Residual risk:* yt-dlp parses data from YouTube; a vulnerability there runs
 with the user's privileges, like T1. YouTube changes regularly break older
-yt-dlp versions; updating means a new app release (pinned, reviewed),
-deliberately not an in-app self-update.
+yt-dlp versions; T14 lets the user fetch a newer one after a failure.
 
 ### T12. Update check (GitHub API)
 
@@ -288,6 +290,52 @@ to add.
   it was chosen; they go through the same pipeline as dropped files.
   Tests: `imported_files_cannot_escape_or_lie`, `rejects_foreign_and_broken_files`,
   `baseline_is_not_added`.
+
+### T14. yt-dlp update after a failed download
+
+*Threat:* the app downloads and runs a program from the internet, so a
+compromised yt-dlp GitHub account or release, a forged answer of the GitHub
+API, a man in the middle or a broken download could make it run malicious
+or corrupt code; the update could also be triggered without the user
+knowing, or leave the YouTube download broken.
+
+*Mitigations (`crates/podcast-core/src/ytdlp_update.rs`,
+`update_youtube_tool` in `src-tauri/src/commands.rs`):*
+* Nothing is checked at start. The button "Zaktualizuj narzędzie" appears
+  only next to a failed YouTube download (errors `YouTube`,
+  `YouTubeBlocked`), and the update runs only after the user confirms a
+  dialog that says what will be downloaded from where.
+* The release tag from `api.github.com/repos/yt-dlp/yt-dlp/releases/latest`
+  must be a yt-dlp version (`NNNN.N.N[.N]`, digits only), so the download
+  URLs always point to `https://github.com/yt-dlp/yt-dlp/releases/download/`
+  (HTTPS only; sizes capped: 256 KB sums, 16 KB signature, 300 MB binary).
+* `SHA2-256SUMS` must carry a valid OpenPGP signature (v4, RSA, SHA-256/512)
+  by the yt-dlp signing key built into the app (fingerprint
+  `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`, RSA 4096,
+  `public.key` of the yt-dlp repository). The verification is implemented
+  with `num-bigint` (PKCS #1 v1.5) and tested against the real signature of
+  2026.10.26 and with changed bytes (`real_release_signature_is_accepted_and_tampering_is_not`).
+  Taking over the GitHub account is not enough to pass; the private key is.
+* The binary for this system (`yt-dlp.exe`, `yt-dlp_macos`) is accepted only
+  with the SHA-256 listed in the signed sums, written to a temporary file in
+  `<app data>/tools` and renamed to `yt-dlp-<version>[.exe]`; the app bundle
+  is never changed (macOS signature). It must run and report the expected
+  version (`--ignore-config --version`), else it is deleted and the previous
+  yt-dlp stays in use (`update_refuses_files_that_do_not_match_the_signed_sums`).
+* A stored copy is used only when it is newer than the bundled yt-dlp, so
+  an app update with a newer pinned yt-dlp takes over again. It runs with
+  exactly the same arguments and restrictions as T11. Older copies are
+  removed after a successful update.
+* The HTTP client (`ureq`, rustls) uses the system certificates and sends a
+  fixed user agent (`SChTomyAudio/<version>`), no cookies and no data about
+  the user.
+
+*Residual risk:* we trust the yt-dlp maintainers' signing key, as we trust
+their releases pinned at build time (T8). A new yt-dlp release could have a
+bug that breaks downloads; the app then shows the error again and a later
+yt-dlp release or app update fixes it. Downloaded copies are not
+re-verified at every start; someone who can write to the user's app data
+folder can already change far more.
 
 ## Out of scope
 

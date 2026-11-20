@@ -20,6 +20,7 @@ pub mod teaser;
 pub mod vad;
 pub mod watch;
 pub mod youtube;
+pub mod ytdlp_update;
 
 pub use error::{CoreError, ErrorKind, Result};
 pub use ffmpeg::{CancelToken, Tools};

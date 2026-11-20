@@ -49,6 +49,7 @@ fn main() {
             commands::start_all,
             commands::start_job,
             commands::retry_job,
+            commands::update_youtube_tool,
             commands::cancel_all,
             commands::cancel_job,
         ])

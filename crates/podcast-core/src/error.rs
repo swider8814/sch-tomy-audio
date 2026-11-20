@@ -40,6 +40,10 @@ pub enum ErrorKind {
     YouTubeUnavailable,
     /// yt-dlp or Deno could not be found or started.
     YouTubeToolMissing,
+    /// Updating yt-dlp failed (network, unexpected answer, does not run).
+    ToolUpdate,
+    /// A downloaded yt-dlp update failed the signature or checksum check.
+    ToolUpdateRejected,
 }
 
 #[derive(Debug, Clone)]
@@ -91,10 +95,12 @@ impl CoreError {
             ErrorKind::Pattern => "Nie udało się zapisać albo odczytać wzorca zajawki.".into(),
             ErrorKind::Settings => "Nie udało się zapisać ustawień.".into(),
             ErrorKind::YouTubeLink => "To nie wygląda na link do filmu na YouTube. Skopiuj adres filmu (np. https://www.youtube.com/watch?v=...) i wklej go jeszcze raz.".into(),
-            ErrorKind::YouTube => "Nie udało się pobrać nagrania z YouTube. Sprawdź połączenie z internetem i spróbuj ponownie. Jeśli błąd się powtarza, YouTube mógł zmienić sposób działania i potrzebna będzie nowa wersja aplikacji.".into(),
+            ErrorKind::YouTube => "Nie udało się pobrać nagrania z YouTube. Sprawdź połączenie z internetem i spróbuj ponownie. Jeśli błąd się powtarza, YouTube mógł zmienić sposób działania: kliknij „Zaktualizuj narzędzie”.".into(),
             ErrorKind::YouTubeBlocked => "YouTube zablokował pobieranie (prosi o potwierdzenie, że nie jesteś robotem). Spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.".into(),
             ErrorKind::YouTubeToolMissing => "Nie udało się uruchomić programów do pobierania z YouTube (yt-dlp, Deno). Zainstaluj aplikację ponownie. Pliki z dysku możesz obrabiać bez zmian.".into(),
             ErrorKind::YouTubeUnavailable => "Ten film jest niedostępny (prywatny, usunięty albo tylko dla członków kanału). Sprawdź link.".into(),
+            ErrorKind::ToolUpdate => "Nie udało się zaktualizować narzędzia do pobierania z YouTube. Sprawdź połączenie z internetem i spróbuj ponownie. Dotychczasowa wersja działa dalej.".into(),
+            ErrorKind::ToolUpdateRejected => "Pobrana aktualizacja nie przeszła sprawdzenia podpisu, więc aplikacja jej nie użyła. Dotychczasowa wersja działa dalej. Spróbuj ponownie później.".into(),
         }
     }
 }

@@ -211,7 +211,7 @@ pub struct YoutubeAdded {
 /// is downloaded in list order, then processed like a dropped file.
 #[tauri::command]
 pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<YoutubeAdded, String> {
-    if let Err(e) = &state.yt {
+    if let Err(e) = &state.yt_tools() {
         // friendly text only; the technical cause is in e.details
         return Err(e.user_message());
     }
@@ -854,6 +854,93 @@ pub fn start_job(app: AppHandle, state: St<'_>, id: u64) -> bool {
     drop(g);
     state.wake.notify_all();
     ok
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolUpdated {
+    /// A newer yt-dlp was installed.
+    updated: bool,
+    /// yt-dlp version now in use.
+    version: String,
+    /// Failed downloads started again.
+    retried: usize,
+}
+
+/// Updates yt-dlp after a failed YouTube download, when the user agreed
+/// (button next to the error). The only network access besides YouTube
+/// itself and the update check; every check is in
+/// `podcast_core::ytdlp_update`. Failed downloads that offered the update
+/// are started again with the new yt-dlp.
+#[tauri::command]
+pub async fn update_youtube_tool(app: AppHandle, state: St<'_>) -> Result<ToolUpdated, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || update_tool_blocking(&app, &state))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn update_tool_blocking(app: &AppHandle, state: &AppState) -> Result<ToolUpdated, String> {
+    use podcast_core::ytdlp_update::{self, Outcome};
+    use std::sync::atomic::Ordering;
+    if state.ytdlp_updating.swap(true, Ordering::SeqCst) {
+        return Err("Aktualizacja już trwa. Poczekaj chwilę.".into());
+    }
+    struct Done<'a>(&'a AppState);
+    impl Drop for Done<'_> {
+        fn drop(&mut self) {
+            self.0.ytdlp_updating.store(false, Ordering::SeqCst);
+        }
+    }
+    let _done = Done(state);
+    let current = state.ytdlp_version();
+    let result = ytdlp_update::update(&state.ytdlp_dir, current.as_ref(), &ytdlp_update::http_get);
+    if let Ok(Outcome::Updated { path, .. }) = &result {
+        state.set_ytdlp(path.clone());
+    }
+    let mut g = state.lock();
+    let mut retried = 0;
+    let offered = |j: &Job| {
+        j.view.status == Status::Error
+            && j.needs_download()
+            && j.view.error.as_ref().is_some_and(|e| e.can_update_tool)
+    };
+    for j in g.jobs.iter_mut().filter(|j| offered(j)) {
+        match &result {
+            Ok(Outcome::Updated { to, .. }) => {
+                j.log
+                    .push_str(&format!("\nyt-dlp updated to {to}, downloading again\n"));
+                j.view.error = None;
+                j.view.status = Status::Downloading;
+                j.view.progress = 0.0;
+                retried += 1;
+            }
+            Ok(Outcome::UpToDate { version }) => {
+                j.log
+                    .push_str(&format!("\nyt-dlp {version} is the newest release\n"));
+                if let Some(e) = j.view.error.as_mut() {
+                    e.can_update_tool = false;
+                }
+            }
+            Err(e) => j.log.push_str(&format!("\nyt-dlp update failed: {e}\n")),
+        }
+    }
+    emit_jobs(app, &g);
+    drop(g);
+    state.wake.notify_all();
+    match result {
+        Ok(Outcome::Updated { to, .. }) => Ok(ToolUpdated {
+            updated: true,
+            version: to.to_string(),
+            retried,
+        }),
+        Ok(Outcome::UpToDate { version }) => Ok(ToolUpdated {
+            updated: false,
+            version: version.to_string(),
+            retried,
+        }),
+        Err(e) => Err(e.user_message()),
+    }
 }
 
 #[tauri::command]
