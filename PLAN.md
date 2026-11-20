@@ -128,6 +128,10 @@ docs/threat-model.md
   episodes. Both are read from file names such as "06.09.2026 - Speaker -
   Title_audio.mp3" or "TOMY Piotrków 2026.10.11 - Speaker.mp4" (title then
   empty and highlighted); other names fall back to the file name as title.
+  Since v0.1.6 the UI shows speaker and date as two inputs (speaker with
+  the remembered names as a datalist, date normalised to RRRR.MM.DD,
+  either highlighted when empty); they are still stored and sent to
+  `set_title` as one "speaker - date" suffix.
 * **Output name (v0.1.2):** `RRRR-MM-DD-tytul-mowca-podcast.mp3`
   (ASCII slug, date first for sorting), falling back to the slug of the
   original name. The spec asked for `<original>-podcast.mp3`; changed at the
@@ -247,5 +251,10 @@ programie (version, update check). A validation error switches to its tab.
 10. Stage 2 (v0.1.2): YouTube link via bundled yt-dlp 2026.10.26 + Deno 2.9.7
     (yt-dlp needs a JavaScript runtime for YouTube; Deno is its default).
     Audio only (`bestaudio[ext=m4a]/bestaudio`, no conversion), saved to
-    `Downloads/SCh Tomy YouTube`, one download at a time; title and date
-    prefilled from the video, the speaker is typed by the user.
+    `Downloads/SCh Tomy YouTube`, one download at a time; title prefilled
+    from the video. Since v0.1.6 the description is fetched too:
+    `speakers::find_in_text` takes a remembered speaker mentioned in it
+    (earliest, whole words, case and Polish letters ignored), else a
+    capitalised name after a cue word ("wprowadził nas Jerzy Sikora",
+    "Mówca: ...", "wygłosił pastor ..."); the date comes from a
+    "Data: 01.11.2026" line, else the upload date.

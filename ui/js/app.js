@@ -14,6 +14,8 @@ import {
   isBusy as busy,
   missingSermon,
   runFraction,
+  joinSuffix,
+  normalDate,
   similarSpeaker,
   splitSuffix,
   startIsProposal,
@@ -171,29 +173,42 @@ function createRow(id) {
     placeholder: "Wpisz tytuł kazania",
     "aria-label": "Tytuł kazania",
   });
-  const suffix = h("input", {
-    class: "suffix-input",
+  const speaker = h("input", {
+    class: "speaker-input",
     type: "text",
-    maxlength: 200,
-    placeholder: "Mówca - RRRR.MM.DD",
-    "aria-label": "Mówca i data",
+    maxlength: 100,
+    placeholder: "Mówca",
+    "aria-label": "Mówca",
+  });
+  speaker.setAttribute("list", "speaker-list");
+  speaker.addEventListener("focus", fillSpeakerList);
+  const date = h("input", {
+    class: "date-input",
+    type: "text",
+    maxlength: 10,
+    inputmode: "numeric",
+    placeholder: "RRRR.MM.DD",
+    "aria-label": "Data kazania (RRRR.MM.DD)",
   });
   const info = h("span", { class: "info-dot", tabindex: 0, role: "note" }, "i");
-  suffix.setAttribute("list", "speaker-list");
-  // Suggestions "Name - <this file's date>" for every remembered speaker.
-  const fillSuggestions = () => fillSpeakerList(splitSuffix(suffix.value).date);
-  suffix.addEventListener("focus", fillSuggestions);
-  suffix.addEventListener("input", fillSuggestions);
   const speakerHint = h("div", { class: "speaker-hint warn-text", hidden: true });
   const save = async () => {
+    const day = normalDate(date.value);
+    date.classList.toggle("invalid", day === null);
+    if (day === null) {
+      toast("Wpisz datę jako RRRR.MM.DD, na przykład 2026.11.01.");
+      return;
+    }
+    date.value = day;
     try {
-      await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
+      await invoke("set_title", { id, sermon: sermon.value, suffix: joinSuffix(speaker.value, day) });
     } catch (e) {
       toast(errorText(e));
     }
   };
   sermon.addEventListener("change", save);
-  suffix.addEventListener("change", save);
+  speaker.addEventListener("change", save);
+  date.addEventListener("change", save);
   // Enter jumps to the title of the next visible file, so titles can be typed one after another.
   sermon.addEventListener("keydown", (ev) => {
     if (ev.key !== "Enter" || ev.isComposing) return;
@@ -213,7 +228,8 @@ function createRow(id) {
     tr: h("tr"),
     fileName,
     sermon,
-    suffix,
+    speaker,
+    date,
     info,
     speakerHint,
     start: h("td", { class: "c-start" }),
@@ -227,7 +243,7 @@ function createRow(id) {
       { class: "c-title" },
       fileName,
       sermon,
-      h("div", { class: "suffix-row" }, suffix, info),
+      h("div", { class: "suffix-row" }, speaker, date, info),
       speakerHint,
     ),
     r.start,
@@ -244,14 +260,21 @@ function updateRow(job) {
   r.fileName.textContent = job.fileName;
   r.fileName.title = job.path;
   if (document.activeElement !== r.sermon) r.sermon.value = job.sermonTitle ?? "";
-  if (document.activeElement !== r.suffix) r.suffix.value = job.titleSuffix ?? "";
+  const parts = splitSuffix(job.titleSuffix);
+  if (document.activeElement !== r.speaker) r.speaker.value = parts.name;
+  if (document.activeElement !== r.date) {
+    r.date.value = normalDate(parts.date) || parts.date;
+    r.date.classList.remove("invalid");
+  }
   r.sermon.disabled = busy(job);
-  r.suffix.disabled = busy(job);
-  r.sermon.classList.toggle(
-    "missing",
-    missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
-  );
-  const tip = ["Mówca i data, odczytane z nazwy pliku. Możesz je poprawić."];
+  r.speaker.disabled = busy(job);
+  r.date.disabled = busy(job);
+  const editable = !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path);
+  r.sermon.classList.toggle("missing", editable && missingSermon(job));
+  r.speaker.classList.toggle("missing", editable && !parts.name);
+  r.date.classList.toggle("missing", editable && !parts.date);
+  const from = job.sourceUrl ? "z opisu filmu na YouTube" : "z nazwy pliku";
+  const tip = [`Mówca i data, odczytane ${from}. Możesz je poprawić, mówcę wybierzesz też z listy.`];
   if (job.status !== "downloading") {
     tip.push(`Tytuł w tagach MP3: ${job.title || "(pusty)"}`);
     if (job.status !== "done" && job.outputName) tip.push(`Nazwa pliku: ${job.outputName}`);
@@ -479,10 +502,10 @@ async function askNotifyPermission() {
 
 // --------------------------------------------------------------- speakers
 
-/** Fills the shared <datalist> with "Name - date" for every remembered speaker. */
-function fillSpeakerList(date) {
+/** Fills the shared <datalist> with the remembered speakers. */
+function fillSpeakerList() {
   const list = $("#speaker-list");
-  list.replaceChildren(...app.speakers.map((n) => h("option", { value: date ? `${n} - ${date}` : n })));
+  list.replaceChildren(...app.speakers.map((n) => h("option", { value: n })));
 }
 
 /** Warns under the speaker field when the name looks like a misspelling of a known one. */
@@ -492,7 +515,7 @@ function renderSpeakerHint(r, job) {
   const match = editable ? similarSpeaker(name, app.speakers) : null;
   r.speakerHint.hidden = !match;
   if (!match) return;
-  const fixed = date ? `${match} - ${date}` : match;
+  const fixed = joinSuffix(match, date);
   r.speakerHint.replaceChildren(
     `Czy chodziło o: ${match}? `,
     h(

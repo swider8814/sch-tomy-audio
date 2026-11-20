@@ -159,7 +159,7 @@ fn common_args(tools: &YtTools) -> Args {
 pub fn metadata_args(tools: &YtTools, id: &str) -> Vec<std::ffi::OsString> {
     common_args(tools)
         .args(["--skip-download", "--print"])
-        .arg("%(.{id,title,upload_date,uploader,channel,duration})j")
+        .arg("%(.{id,title,upload_date,uploader,channel,duration,description})j")
         .args(["--", &canonical_url(id)])
         .into_vec()
 }
@@ -214,6 +214,9 @@ pub struct VideoInfo {
     pub channel: Option<String>,
     #[serde(default)]
     pub duration: Option<f64>,
+    /// Video description (the speaker is usually named there, not in the title).
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 impl VideoInfo {
@@ -233,6 +236,42 @@ impl VideoInfo {
     /// "2026.10.11" for the title suffix.
     pub fn dotted_date(&self) -> Option<String> {
         self.date().map(|(y, m, d)| format!("{y:04}.{m:02}.{d:02}"))
+    }
+
+    /// Date of the sermon: the "Data: 01.11.2026" line of the description
+    /// (the video is often published a few days later), else the upload date.
+    pub fn sermon_date(&self) -> Option<(i32, u32, u32)> {
+        let from_description = self.description.as_deref().and_then(|d| {
+            d.lines().take(200).find_map(|line| {
+                let line = line.trim();
+                let (label, value) = line.split_once(':')?;
+                let label = label.trim().to_lowercase();
+                matches!(
+                    label.as_str(),
+                    "data" | "date" | "data kazania" | "data nagrania"
+                )
+                .then(|| crate::naming::date_from_name(value.trim()))
+                .flatten()
+            })
+        });
+        from_description.or_else(|| self.date())
+    }
+
+    /// Speaker named in the description (see [`crate::speakers::find_in_text`]).
+    pub fn speaker(&self, known: &[String]) -> Option<String> {
+        crate::speakers::find_in_text(self.description.as_deref()?, known)
+    }
+
+    /// Title suffix "Mówca - RRRR.MM.DD" (or just the date, or empty).
+    pub fn title_suffix(&self, known: &[String]) -> String {
+        let date = self
+            .sermon_date()
+            .map(|(y, m, d)| format!("{y:04}.{m:02}.{d:02}"));
+        [self.speaker(known), date]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(" - ")
     }
 }
 
@@ -436,6 +475,7 @@ mod tests {
             uploader: None,
             channel: None,
             duration: None,
+            description: None,
         };
         let d: Vec<String> = download_args(
             &tools(),
@@ -458,6 +498,34 @@ mod tests {
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         );
         assert!(!d.iter().any(|s| s == "--exec" || s == "-x"));
+    }
+
+    #[test]
+    fn title_suffix_from_the_description() {
+        let json = r#"{"id":"lL8z1-0Vynw","title":"W Babilonie, ale nie z Babilonu","upload_date":"20261103","description":"ŁDZ // Do nowej serii kazań \"Wiara pomimo\" wprowadził nas Jerzy Sikora\n\nFragment: Księga Daniela 1:1-21\nData: 01.11.2026"}"#;
+        let info = parse_metadata(json).unwrap();
+        assert_eq!(
+            info.sermon_date(),
+            Some((2026, 11, 1)),
+            "Data: line wins over upload date"
+        );
+        assert_eq!(info.title_suffix(&[]), "Jerzy Sikora - 2026.11.01");
+        // a remembered spelling is used as is
+        assert_eq!(
+            info.title_suffix(&["jerzy sikora".to_string()]),
+            "jerzy sikora - 2026.11.01"
+        );
+        // no description: upload date only
+        let plain = parse_metadata(r#"{"id":"a","title":"T","upload_date":"20261103"}"#).unwrap();
+        assert_eq!(plain.title_suffix(&[]), "2026.11.03");
+        // a bad date in the description falls back to the upload date
+        let bad = parse_metadata(
+            r#"{"id":"a","title":"T","upload_date":"20261103","description":"Data: wkrótce\nData: 45.13.2026"}"#,
+        )
+        .unwrap();
+        assert_eq!(bad.title_suffix(&[]), "2026.11.03");
+        let nothing = parse_metadata(r#"{"id":"a","title":"T"}"#).unwrap();
+        assert_eq!(nothing.title_suffix(&[]), "");
     }
 
     #[test]

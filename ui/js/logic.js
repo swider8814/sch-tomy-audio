@@ -160,9 +160,31 @@ export function formatEta(seconds) {
 export function splitSuffix(suffix) {
   const s = String(suffix ?? "").trim();
   // same date forms as the backend: 2026.11.08, 2026-11-08, 08.11.2026, 08-11-2026
-  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{2}[.-]\d{2}|\d{2}[.-]\d{2}[.-]\d{4})$/.exec(s);
+  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{1,2}[.-]\d{1,2}|\d{1,2}[.-]\d{1,2}[.-]\d{4})$/.exec(s);
   if (m) return { name: m[1].trim().replace(/[-\s]+$/, ""), date: m[2] };
   return { name: s, date: "" };
+}
+
+/**
+ * A date typed by the user as "RRRR.MM.DD": accepts 2026.11.1, 2026-11-01,
+ * 1.11.2026, 01/11/2026. Empty text gives "", an invalid date gives null.
+ */
+export function normalDate(text) {
+  const s = String(text ?? "").trim();
+  if (!s) return "";
+  let m = /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/.exec(s);
+  let y, mo, d;
+  if (m) [, y, mo, d] = m;
+  else if ((m = /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/.exec(s))) [, d, mo, y] = m;
+  else return null;
+  const day = new Date(Date.UTC(+y, +mo - 1, +d));
+  if (+y < 1900 || day.getUTCMonth() !== +mo - 1 || day.getUTCDate() !== +d) return null;
+  return `${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")}`;
+}
+
+/** "Adam Szumorek", "2026.10.11" -> "Adam Szumorek - 2026.10.11" (either may be empty). */
+export function joinSuffix(name, date) {
+  return [String(name ?? "").trim(), String(date ?? "").trim()].filter(Boolean).join(" - ");
 }
 
 /** Lower case, no Polish diacritics, single spaces. */

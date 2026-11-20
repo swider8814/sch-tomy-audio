@@ -22,6 +22,7 @@ fn info() -> VideoInfo {
         uploader: None,
         channel: None,
         duration: None,
+        description: None,
     }
 }
 

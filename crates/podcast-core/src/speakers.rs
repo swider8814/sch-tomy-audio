@@ -116,6 +116,149 @@ pub fn add_all(list: &mut Vec<String>, names: &[String]) -> usize {
     added
 }
 
+/// Lower case ASCII form for matching names in free text ("Rafał" and
+/// "rafal" match).
+fn fold(text: &str) -> String {
+    // per character: `deunicode::deunicode` would drop line breaks
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_ascii_lowercase().to_string()
+            } else {
+                deunicode::deunicode_char(c).unwrap_or(" ").to_lowercase()
+            }
+        })
+        .collect()
+}
+
+/// Finds a speaker in a text such as a YouTube description: first a known
+/// name (the one mentioned earliest, as whole words), otherwise a capitalised
+/// first name and surname after a word that introduces the speaker, as in
+/// "Do nowej serii kazań wprowadził nas Jerzy Sikora", "Kazanie wygłosił
+/// pastor Jan Nowak" or "Mówca: Ewa Kowalska".
+pub fn find_in_text(text: &str, known: &[String]) -> Option<String> {
+    let text: String = text.chars().take(20_000).collect();
+    known_in_text(&text, known).or_else(|| introduced_in_text(&text))
+}
+
+fn known_in_text(text: &str, known: &[String]) -> Option<String> {
+    let folded = fold(text);
+    let bytes = folded.as_bytes();
+    let mut best: Option<(usize, &String)> = None;
+    for name in known {
+        let needle = fold(name.trim());
+        if needle.len() < 3 {
+            continue;
+        }
+        let mut from = 0;
+        while let Some(pos) = folded[from..].find(&needle) {
+            let at = from + pos;
+            let end = at + needle.len();
+            let before_ok = at == 0 || !bytes[at - 1].is_ascii_alphanumeric();
+            let after_ok = end >= bytes.len() || !bytes[end].is_ascii_alphanumeric();
+            if before_ok && after_ok {
+                if best.is_none_or(|(b, _)| at < b) {
+                    best = Some((at, name));
+                }
+                break;
+            }
+            from = at + 1;
+        }
+    }
+    best.map(|(_, name)| name.clone())
+}
+
+/// Words (lower case, without Polish letters) after which the speaker's name
+/// follows.
+const CUES: [&str; 32] = [
+    "nas",
+    "was",
+    "wam",
+    "sie",
+    "mowca",
+    "mowi",
+    "mowil",
+    "mowila",
+    "kaznodzieja",
+    "glosi",
+    "glosil",
+    "glosila",
+    "wyglosil",
+    "wyglosila",
+    "prowadzi",
+    "prowadzil",
+    "prowadzila",
+    "poprowadzil",
+    "poprowadzila",
+    "wprowadzil",
+    "wprowadzila",
+    "usluguje",
+    "uslugiwal",
+    "uslugiwala",
+    "przemawia",
+    "przemawial",
+    "przemawiala",
+    "naucza",
+    "nauczal",
+    "nauczala",
+    "speaker",
+    "preacher",
+];
+/// Titles between the cue and the name ("wygłosił pastor Jan Nowak").
+const TITLES: [&str; 9] = [
+    "pastor", "pastorka", "brat", "br.", "siostra", "s.", "ks.", "dr", "dr.",
+];
+
+fn introduced_in_text(text: &str) -> Option<String> {
+    for line in text.lines() {
+        let words: Vec<&str> = line.split_whitespace().collect();
+        for (i, w) in words.iter().enumerate() {
+            // "Mówca:" ends with a colon; "nas," does not introduce anyone
+            let cue = w.strip_suffix(':').unwrap_or(w);
+            if !CUES.contains(&fold(cue).as_str()) {
+                continue;
+            }
+            let mut rest = words[i + 1..]
+                .iter()
+                .copied()
+                .skip_while(|w| matches!(*w, ":" | "-"))
+                .peekable();
+            while rest
+                .peek()
+                .is_some_and(|w| TITLES.contains(&fold(w).as_str()))
+            {
+                rest.next();
+            }
+            let mut name: Vec<&str> = Vec::new();
+            for w in rest {
+                let bare = w.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\u{201d}']);
+                if !is_name_word(bare) || name.len() == 3 {
+                    break;
+                }
+                name.push(bare);
+                if bare.len() != w.len() {
+                    break; // punctuation ends the name
+                }
+            }
+            if name.len() >= 2 {
+                return Some(name.join(" "));
+            }
+        }
+    }
+    None
+}
+
+/// "Jerzy", "Kowalska-Nowak", "O'Brien": each part a capital letter, then
+/// lower case letters.
+fn is_name_word(w: &str) -> bool {
+    w.split(['-', '\'']).all(|part| {
+        let mut chars = part.chars();
+        chars.next().is_some_and(char::is_uppercase)
+            && chars.clone().next().is_some()
+            && chars.all(char::is_lowercase)
+    })
+}
+
 /// Removes `name` (case-insensitively).
 pub fn forget(list: &mut Vec<String>, name: &str) {
     let k = key(name);
@@ -214,6 +357,65 @@ mod tests {
         let added = add_all(&mut l, &parse_list("Ewa Kowalska\njan nowak\nAnna Lis"));
         assert_eq!(added, 2);
         assert_eq!(l, ["Jan Nowak", "Ewa Kowalska", "Anna Lis"]);
+    }
+
+    #[test]
+    fn speaker_from_a_youtube_description() {
+        let known = vec![
+            "Adam Szumorek".to_string(),
+            "Leonid Matseyka".to_string(),
+            "Rafał Piekarski".to_string(),
+        ];
+        // the church's description format, speaker not remembered yet
+        let ours = "ŁDZ // Do nowej serii kazań \"Wiara pomimo\" wprowadził nas Jerzy Sikora\n\n\
+                    Fragment: Księga Daniela 1:1-21\nData: 01.11.2026";
+        assert_eq!(find_in_text(ours, &known).as_deref(), Some("Jerzy Sikora"));
+        // a known name anywhere in the text, whole words, ignoring case and Polish letters
+        assert_eq!(
+            find_in_text(
+                "Kazanie z niedzieli.\nZaprasza pastor rafal piekarski oraz cały zbór.",
+                &known
+            )
+            .as_deref(),
+            Some("Rafał Piekarski")
+        );
+        // the one mentioned first wins
+        assert_eq!(
+            find_in_text("Mówi Leonid Matseyka. Modlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Leonid Matseyka")
+        );
+        // not part of another word
+        assert_eq!(find_in_text("Adam Szumorekowski", &known), None);
+        // other ways of introducing an unknown speaker
+        for (text, who) in [
+            ("Seria: Babilon\nMówca: Jan Nowak\nZapraszamy!", "Jan Nowak"),
+            ("Kaznodzieja - Ewa Kowalska (Łódź)", "Ewa Kowalska"),
+            (
+                "Kazanie wygłosił pastor Piotr Zieliński, zapraszamy",
+                "Piotr Zieliński",
+            ),
+            (
+                "Słowem podzielił się br. Anna Kowalska-Nowak.",
+                "Anna Kowalska-Nowak",
+            ),
+            (
+                "PTK // Poprowadził nas Jan Maria Rokita Nowak",
+                "Jan Maria Rokita",
+            ),
+        ] {
+            assert_eq!(find_in_text(text, &known).as_deref(), Some(who), "{text}");
+        }
+        // places, titles and references are not speakers
+        for text in [
+            "Kazanie: W Babilonie\nTomaszów Mazowiecki",
+            "Fragment: Księga Daniela 1:1-21\nData: 01.11.2026",
+            "Zaprasza nas Kościół w Łodzi",
+            "wprowadził nas Jerzy",
+            "wprowadził nas ŁDZ TOMY",
+            "",
+        ] {
+            assert_eq!(find_in_text(text, &known), None, "{text}");
+        }
     }
 
     #[test]
