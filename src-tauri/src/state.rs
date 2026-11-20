@@ -44,6 +44,8 @@ pub struct AppState {
     pub ytdlp_dir: PathBuf,
     /// An update of yt-dlp is running.
     pub ytdlp_updating: AtomicBool,
+    /// `SCHTOMY_YTDLP` names the yt-dlp to use: it is never replaced.
+    pub ytdlp_override: bool,
     /// Default folder for YouTube audio (Downloads/SCh Tomy YouTube); the
     /// setting `youtube_dir` overrides it.
     pub default_youtube_dir: PathBuf,
@@ -73,15 +75,33 @@ impl AppState {
         self.yt.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
-    /// Switches to an updated yt-dlp.
-    pub fn set_ytdlp(&self, path: PathBuf) {
-        if let Ok(t) = self.yt.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-            t.ytdlp = path;
+    /// Switches to an updated yt-dlp, also when the bundled one could not
+    /// be found at start. Returns false when it cannot be used.
+    pub fn set_ytdlp(&self, path: PathBuf) -> bool {
+        if self.ytdlp_override {
+            return false;
+        }
+        let mut yt = self.yt.lock().unwrap_or_else(|e| e.into_inner());
+        match yt.as_mut() {
+            Ok(t) => {
+                t.ytdlp = path;
+                true
+            }
+            Err(_) => match YtTools::with_ytdlp(path) {
+                Ok(t) => {
+                    *yt = Ok(t);
+                    true
+                }
+                Err(_) => false,
+            },
         }
     }
 
-    /// Version of the yt-dlp in use, when known.
+    /// Version of the yt-dlp in use, when known (not for `SCHTOMY_YTDLP`).
     pub fn ytdlp_version(&self) -> Option<ytdlp_update::Version> {
+        if self.ytdlp_override {
+            return None;
+        }
         let bundled = ytdlp_update::bundled_version();
         ytdlp_update::preferred(&self.ytdlp_dir, bundled.as_ref())
             .map(|(_, v)| v)
@@ -95,6 +115,7 @@ impl AppState {
         let patterns = Arc::new(store.load_all());
         let queue_path = data_dir.join("queue.json");
         let ytdlp_dir = ytdlp_update::tools_dir(data_dir);
+        let ytdlp_override = std::env::var_os(youtube::ENV_YTDLP).is_some();
         let speakers_path = data_dir.join("speakers.json");
         let speakers = podcast_core::speakers::load(&speakers_path);
         let history_path = data_dir.join("history.json");
@@ -137,19 +158,10 @@ impl AppState {
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
-            yt: Mutex::new(YtTools::locate().map(|mut t| {
-                // a yt-dlp updated after a failed download, if newer than the
-                // bundled one (an explicit SCHTOMY_YTDLP override wins)
-                if std::env::var_os(youtube::ENV_YTDLP).is_none() {
-                    let bundled = ytdlp_update::bundled_version();
-                    if let Some((path, _)) = ytdlp_update::preferred(&ytdlp_dir, bundled.as_ref()) {
-                        t.ytdlp = path;
-                    }
-                }
-                t
-            })),
+            yt: Mutex::new(initial_yt_tools(&ytdlp_dir, ytdlp_override)),
             ytdlp_dir,
             ytdlp_updating: AtomicBool::new(false),
+            ytdlp_override,
             default_youtube_dir: download_dir
                 .unwrap_or_else(|| data_dir.join("downloads"))
                 .join("SCh Tomy YouTube"),
@@ -316,6 +328,28 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .extend(handles);
+}
+
+/// yt-dlp and Deno at start: a stored updated yt-dlp newer than the bundled
+/// one is used instead of it (also when the bundled one is missing); an
+/// explicit `SCHTOMY_YTDLP` wins.
+fn initial_yt_tools(ytdlp_dir: &Path, ytdlp_override: bool) -> Result<YtTools, CoreError> {
+    let located = YtTools::locate();
+    if ytdlp_override {
+        return located;
+    }
+    let bundled = ytdlp_update::bundled_version();
+    match (
+        located,
+        ytdlp_update::preferred(ytdlp_dir, bundled.as_ref()),
+    ) {
+        (Ok(mut t), Some((path, _))) => {
+            t.ytdlp = path;
+            Ok(t)
+        }
+        (Err(e), Some((path, _))) => YtTools::with_ytdlp(path).map_err(|_| e),
+        (located, None) => located,
+    }
 }
 
 fn friendly(e: &CoreError) -> ErrorView {

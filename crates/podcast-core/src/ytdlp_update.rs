@@ -13,11 +13,11 @@
 //!   changed file on the way cannot pass this without that private key;
 //! * downloads the binary for this system and accepts it only when its
 //!   SHA-256 is the one listed in the signed sums;
-//! * stores it as `yt-dlp-<version>[.exe]` in the app's data folder (never
-//!   inside the app bundle, which would break the macOS signature), written
-//!   to a temporary file first and renamed, then runs it once with
-//!   `--version`; a file that does not start or reports another version is
-//!   removed and the previous yt-dlp stays in use.
+//! * writes it under a temporary name in the app's data folder (never inside
+//!   the app bundle, which would break the macOS signature), runs it once
+//!   with `--version` (killed after [`VERSION_TIMEOUT`]) and only then
+//!   renames it to `yt-dlp-<version>[.exe]`; a file that does not start or
+//!   reports another version is removed and the previous yt-dlp stays in use.
 //!
 //! The bundled yt-dlp is never changed. A newer installed copy is used
 //! instead of it; an app update that bundles an even newer one wins again.
@@ -298,9 +298,17 @@ pub fn preferred(dir: &Path, bundled: Option<&Version>) -> Option<(PathBuf, Vers
 }
 
 /// Stores `bytes` as yt-dlp `version` after checking them against the
-/// signed SHA-256. Written to a temporary file and renamed, so a broken
-/// download never looks like a complete one.
-pub fn install(dir: &Path, version: &Version, bytes: &[u8], sha256: &[u8; 32]) -> Result<PathBuf> {
+/// signed SHA-256. The file is written under a temporary name (ignored by
+/// [`installed`]), checked with `check` (a test run) and only then renamed,
+/// so a broken or unchecked download is never picked up, not even after a
+/// crash. The temporary file is removed on every failure.
+pub fn install(
+    dir: &Path,
+    version: &Version,
+    bytes: &[u8],
+    sha256: &[u8; 32],
+    check: &dyn Fn(&Path) -> Result<()>,
+) -> Result<PathBuf> {
     if Sha256::digest(bytes).as_slice() != sha256 {
         return Err(rejected(
             "downloaded yt-dlp does not match the signed SHA-256",
@@ -308,17 +316,27 @@ pub fn install(dir: &Path, version: &Version, bytes: &[u8], sha256: &[u8; 32]) -
     }
     std::fs::create_dir_all(dir)?;
     let target = dir.join(file_name(version));
-    let part = dir.join(format!(".{}.part", file_name(version)));
-    std::fs::write(&part, bytes)?;
+    // keeps the system's executable suffix, so Windows can run it for the check
+    let part = TempFile(dir.join(format!(".part-{}", file_name(version))));
+    std::fs::write(&part.0, bytes)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&part, std::fs::Permissions::from_mode(0o755))?;
+        std::fs::set_permissions(&part.0, std::fs::Permissions::from_mode(0o755))?;
     }
-    std::fs::rename(&part, &target).inspect_err(|_| {
-        let _ = std::fs::remove_file(&part);
-    })?;
+    check(&part.0)?;
+    std::fs::rename(&part.0, &target)?;
+    std::mem::forget(part);
     Ok(target)
+}
+
+/// Removes the file when dropped (every early return of [`install`]).
+struct TempFile(PathBuf);
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 /// Removes the other stored copies (best effort: one may still be running).
@@ -326,7 +344,7 @@ pub fn remove_others(dir: &Path, keep: &Path) {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
-            let ours = name.starts_with("yt-dlp-") || name.starts_with(".yt-dlp-");
+            let ours = name.starts_with("yt-dlp-") || name.starts_with(".part-yt-dlp-");
             if ours && e.path() != keep {
                 let _ = std::fs::remove_file(e.path());
             }
@@ -334,10 +352,37 @@ pub fn remove_others(dir: &Path, keep: &Path) {
     }
 }
 
-/// Runs `path --version`.
+/// Longest time `--version` may take (the macOS build unpacks itself first).
+const VERSION_TIMEOUT: Duration = Duration::from_secs(90);
+
+/// Runs `path --version`; a program that does not answer in time is killed.
 pub fn tool_version(path: &Path) -> Result<Version> {
     let args: Vec<OsString> = vec!["--ignore-config".into(), "--version".into()];
-    let out = run(path, &args, &CancelToken::new(), StdoutMode::Capture)?;
+    let cancel = CancelToken::new();
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let watchdog = {
+        let cancel = cancel.clone();
+        std::thread::spawn(move || {
+            if finished.recv_timeout(VERSION_TIMEOUT)
+                == Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            {
+                cancel.cancel();
+            }
+        })
+    };
+    let out = run(path, &args, &cancel, StdoutMode::Capture);
+    drop(done);
+    let _ = watchdog.join();
+    let out = out.map_err(|e| {
+        if e.is_cancelled() {
+            update_err(format!(
+                "{} --version did not finish in time",
+                path.display()
+            ))
+        } else {
+            update_err(format!("{}: {e}", path.display()))
+        }
+    })?;
     let text = String::from_utf8_lossy(&out.stdout);
     Version::parse(text.trim())
         .ok_or_else(|| update_err(format!("unexpected --version output: {text}")))
@@ -411,16 +456,17 @@ pub fn update(dir: &Path, current: Option<&Version>, fetch: Fetch) -> Result<Out
     let sha = checksum_for(&sums, asset)
         .ok_or_else(|| rejected(format!("{asset} is not listed in the signed {SUMS}")))?;
     let bytes = fetch(&format!("{base}/{asset}"), MAX_BINARY_BYTES)?;
-    let path = install(dir, &latest, &bytes, &sha)?;
-    match tool_version(&path) {
-        Ok(v) if v == latest => {}
-        other => {
-            let _ = std::fs::remove_file(&path);
-            return Err(update_err(format!(
-                "the new yt-dlp does not run: {other:?}"
-            )));
-        }
-    }
+    let check = |p: &Path| match tool_version(p) {
+        Ok(v) if v == latest => Ok(()),
+        Ok(v) => Err(update_err(format!(
+            "the new yt-dlp reports version {v}, expected {latest}"
+        ))),
+        Err(e) => Err(update_err(format!(
+            "the new yt-dlp does not run: {}",
+            e.details
+        ))),
+    };
+    let path = install(dir, &latest, &bytes, &sha, &check)?;
     remove_others(dir, &path);
     Ok(Outcome::Updated { to: latest, path })
 }
@@ -510,11 +556,27 @@ mod tests {
         let bytes = b"#!/bin/sh\necho 2026.11.15\n".to_vec();
         let sha: [u8; 32] = Sha256::digest(&bytes).into();
         // wrong hash: nothing stored
-        let err = install(&tools, &v2, b"something else", &sha).unwrap_err();
+        let ok = |_: &Path| -> Result<()> { Ok(()) };
+        let err = install(&tools, &v2, b"something else", &sha, &ok).unwrap_err();
         assert_eq!(err.kind, ErrorKind::ToolUpdateRejected);
         assert_eq!(installed(&tools), None);
-        let old = install(&tools, &v1, b"old", &Sha256::digest(b"old").into()).unwrap();
-        let new = install(&tools, &v2, &bytes, &sha).unwrap();
+        // a copy that fails the test run is never stored, nor left behind
+        let broken = |p: &Path| -> Result<()> {
+            assert!(
+                p.is_file() && installed(p.parent().unwrap()).is_none(),
+                "not visible yet"
+            );
+            Err(update_err("does not run"))
+        };
+        let err = install(&tools, &v2, &bytes, &sha, &broken).unwrap_err();
+        assert_eq!(err.kind, ErrorKind::ToolUpdate);
+        assert_eq!(
+            std::fs::read_dir(&tools).unwrap().count(),
+            0,
+            "temporary file removed"
+        );
+        let old = install(&tools, &v1, b"old", &Sha256::digest(b"old").into(), &ok).unwrap();
+        let new = install(&tools, &v2, &bytes, &sha, &ok).unwrap();
         assert_eq!(std::fs::read(&new).unwrap(), bytes);
         assert_eq!(installed(&tools), Some((new.clone(), v2.clone())));
         // used only when newer than the bundled yt-dlp
@@ -532,6 +594,23 @@ mod tests {
         std::fs::write(tools.join("notes.txt"), b"x").unwrap();
         std::fs::write(tools.join(format!("yt-dlp-latest{EXE}")), b"x").unwrap();
         assert_eq!(installed(&tools).map(|p| p.1), Some(v2));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn version_check_of_a_program_that_does_not_run() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("yt-dlp-fake");
+        std::fs::write(&fake, "#!/bin/sh\necho not-a-version\n").unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(tool_version(&fake).unwrap_err().kind, ErrorKind::ToolUpdate);
+        std::fs::write(&fake, "#!/bin/sh\necho 2026.11.15\n").unwrap();
+        assert_eq!(
+            tool_version(&fake).unwrap(),
+            Version::parse("2026.11.15").unwrap()
+        );
+        assert!(tool_version(&dir.path().join("missing")).is_err());
     }
 
     /// Serves the real signed sums of 2026.10.26 and a fake binary.

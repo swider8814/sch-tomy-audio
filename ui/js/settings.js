@@ -404,7 +404,12 @@ function setup() {
     status.textContent = "";
     try {
       const r = await updateYoutubeTool();
-      if (r) status.textContent = r.text;
+      if (r) {
+        status.replaceChildren(r.text);
+        if (r.details) {
+          status.append(h("details", { class: "tech" }, h("summary", {}, "Szczegóły techniczne"), h("pre", {}, r.details)));
+        }
+      }
     } finally {
       btn.disabled = false;
       showYoutubeTool();

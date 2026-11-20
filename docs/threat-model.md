@@ -318,11 +318,16 @@ knowing, or leave the YouTube download broken.
   2026.10.26 and with changed bytes (`real_release_signature_is_accepted_and_tampering_is_not`).
   Taking over the GitHub account is not enough to pass; the private key is.
 * The binary for this system (`yt-dlp.exe`, `yt-dlp_macos`) is accepted only
-  with the SHA-256 listed in the signed sums, written to a temporary file in
-  `<app data>/tools` and renamed to `yt-dlp-<version>[.exe]`; the app bundle
-  is never changed (macOS signature). It must run and report the expected
-  version (`--ignore-config --version`), else it is deleted and the previous
-  yt-dlp stays in use (`update_refuses_files_that_do_not_match_the_signed_sums`).
+  with the SHA-256 listed in the signed sums, written under a temporary name
+  in `<app data>/tools` (ignored by the app), test-run there
+  (`--ignore-config --version`, killed after 90 s, must report the expected
+  version) and only then renamed to `yt-dlp-<version>[.exe]`; on any
+  failure the temporary file is removed and the previous yt-dlp stays in
+  use, so a crash can never leave an unchecked copy that is picked up later
+  (`install_checks_the_hash_and_keeps_the_newest`,
+  `update_refuses_files_that_do_not_match_the_signed_sums`). The app bundle
+  is never changed (macOS signature).
+* `SCHTOMY_YTDLP` (developer override) is never replaced by an update.
 * A stored copy is used only when it is newer than the bundled yt-dlp, so
   an app update with a newer pinned yt-dlp takes over again. It runs with
   exactly the same arguments and restrictions as T11. Older copies are

@@ -49,6 +49,18 @@ impl YtTools {
     }
 }
 
+impl YtTools {
+    /// A given yt-dlp (an updated copy) with the bundled Deno.
+    pub fn with_ytdlp(ytdlp: PathBuf) -> Result<YtTools> {
+        let deno = find_tool_path("deno", ENV_DENO)
+            .map_err(|e| CoreError::new(ErrorKind::YouTubeToolMissing, e.details))?;
+        Ok(YtTools {
+            ytdlp,
+            deno: Some(deno),
+        })
+    }
+}
+
 fn yt_err(details: impl Into<String>) -> CoreError {
     CoreError::new(ErrorKind::YouTube, details)
 }

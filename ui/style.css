@@ -473,3 +473,7 @@ button.scroll-hint { margin-right: auto; font-size: 0.9rem; text-decoration: non
 .suggest-menu li { padding: 0.3rem 0.6rem; cursor: pointer; }
 .suggest-menu li:hover { background: var(--muted-bg); }
 .suggest-menu li.active { background: var(--accent); color: var(--on-accent); }
+
+/* technical details under a message (settings) */
+details.tech { margin-top: 0.3rem; }
+details.tech pre { white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; margin: 0.3rem 0 0; color: var(--muted); }

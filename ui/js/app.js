@@ -769,7 +769,8 @@ async function startOne(id) {
 /**
  * Asks, then updates yt-dlp (signature checked in the backend) and downloads
  * the failed files again. Used next to a failed download and in the
- * settings. Returns null when cancelled, else { ok, text } for the user.
+ * settings. Returns null when cancelled, else { ok, text, details } for the
+ * user (details: technical text of a failed update).
  */
 export async function updateYoutubeTool() {
   if (app.toolUpdating) return null;
@@ -798,7 +799,7 @@ export async function updateYoutubeTool() {
       text: `Masz już najnowszą wersję narzędzia do YouTube (${r.version}). Jeśli pobieranie nie działa, YouTube mógł je chwilowo zablokować: spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.`,
     };
   } catch (e) {
-    return { ok: false, text: errorText(e) };
+    return { ok: false, text: errorText(e), details: e?.details || "" };
   } finally {
     app.toolUpdating = false;
     rerender();
