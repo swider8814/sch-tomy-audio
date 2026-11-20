@@ -509,12 +509,16 @@ function renderSpeakerHint(r, job) {
   // whenever the fields can be edited (also while the start is still being analysed)
   const editable = !busy(job) && job.status !== "done";
   const { name, date } = splitSuffix(job.titleSuffix);
-  const match = editable ? similarSpeaker(name, app.speakers) : null;
+  let match = editable ? similarSpeaker(name, app.speakers) : null;
+  // the typed name is itself on the list (e.g. a typo remembered by an older
+  // version), next to a similar spelling: show the other one too
+  const twin = editable && !match ? similarSpeaker(name, app.speakers.filter((n) => n !== name.trim())) : null;
+  match = match ?? twin;
   r.speakerHint.hidden = !match;
   if (!match) return;
   const fixed = joinSuffix(match, date);
   r.speakerHint.replaceChildren(
-    `Czy chodziło o: ${match}? `,
+    twin ? `Na liście mówców jest też: ${match}. Która pisownia jest dobra? ` : `Czy chodziło o: ${match}? `,
     h(
       "button",
       {
@@ -528,7 +532,7 @@ function renderSpeakerHint(r, job) {
           }
         },
       },
-      "Popraw",
+      twin ? "Użyj tej" : "Popraw",
     ),
   );
 }

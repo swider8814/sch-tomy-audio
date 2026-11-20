@@ -5,6 +5,7 @@ import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./ap
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, themeOf } from "./theme.js";
 import { formatTime } from "./format.js";
+import { similarSpeaker } from "./logic.js";
 
 const dlg = () => $("#settings");
 const form = () => $("#settings-form");
@@ -278,7 +279,19 @@ function renderSpeakers() {
         toast(errorText(e));
       }
     };
-    ul.append(h("li", {}, h("span", { class: "grow" }, name), patternButton("Usuń", "small danger", remove)));
+    // two spellings of one person: one of them is probably a typo
+    const twin = similarSpeaker(
+      name,
+      app.speakers.filter((n) => n !== name),
+    );
+    ul.append(
+      h(
+        "li",
+        {},
+        h("span", { class: "grow" }, name, twin ? h("span", { class: "warn-text twin" }, ` Podobne do: ${twin}. Jeśli to literówka, usuń ją.`) : null),
+        patternButton("Usuń", "small danger", remove),
+      ),
+    );
   }
 }
 

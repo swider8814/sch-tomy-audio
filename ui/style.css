@@ -214,6 +214,7 @@ label.inline { display: flex; gap: 0.4rem; align-items: center; margin: 0.35rem 
 .pattern-list { list-style: none; padding: 0; margin: 0.4rem 0 0; }
 .pattern-list li { display: flex; gap: 0.5rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid var(--border); }
 .pattern-list li .grow { flex: 1; }
+.pattern-list .twin { font-size: 0.85rem; }
 
 .wave-panel { margin: 0.6rem 0 0.8rem; }
 .zoom-buttons { display: inline-flex; gap: 0.3rem; }
