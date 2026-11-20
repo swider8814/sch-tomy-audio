@@ -190,8 +190,9 @@ docs/threat-model.md
   extrapolated from its elapsed time and finished share (`logic.js`
   `runFraction`, `etaSeconds`), shown after 15 s. At the end a system
   notification (tauri-plugin-notification, setting `notify_done`) is sent
-  only when the window is not focused; permission is asked when processing
-  starts.
+  (since v0.1.6 also when the window is focused; a test button in the
+  settings). On desktop the plugin's permission calls are no-ops: macOS
+  asks on the first notification.
 * **Speaker suggestions (v0.1.4):** the speaker of every finished episode
   (`speakers::speaker_of` on the "speaker - date" field) is remembered in
   `speakers.json` in the data folder (max 300, most recent first). The
