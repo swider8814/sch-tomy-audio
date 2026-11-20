@@ -431,6 +431,16 @@ mod tests {
         let ours = "ŁDZ // Do nowej serii kazań \"Wiara pomimo\" wprowadził nas Jerzy Sikora\n\n\
                     Fragment: Księga Daniela 1:1-21\nData: 01.11.2026";
         assert_eq!(find_in_text(ours, &known).as_deref(), Some("Jerzy Sikora"));
+        // later sermons of a series
+        let next = "LDZ // W kolejnym rozważaniu z serii kazań \"Wiara pomimo\" poprowadził nas Adam Jurga\n\n\
+                    Fragment: Księga Daniela 2:1-49\nData: 08.11.2026";
+        assert_eq!(find_in_text(next, &known).as_deref(), Some("Adam Jurga"));
+        // ... and with the speaker already remembered (the stored spelling wins)
+        let with_jurga = [known.clone(), vec!["Adam Jurga".to_string()]].concat();
+        assert_eq!(
+            find_in_text(&next.to_lowercase(), &with_jurga).as_deref(),
+            Some("Adam Jurga")
+        );
         // a known name anywhere in the text, whole words, ignoring case and Polish letters
         assert_eq!(
             find_in_text(
