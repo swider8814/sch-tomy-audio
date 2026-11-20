@@ -115,7 +115,7 @@ test("theme values", () => {
   for (const t of [undefined, null, "", "Dark", "neon"]) assert.equal(themeOf(t), "system");
 });
 
-import { etaSeconds, formatEta, joinSuffix, normalDate, runFraction, similarSpeaker, splitSuffix } from "../ui/js/logic.js";
+import { etaSeconds, formatEta, joinSuffix, matchSpeakers, normalDate, runFraction, similarSpeaker, splitSuffix } from "../ui/js/logic.js";
 
 test("run fraction and ETA", () => {
   const jobs = [
@@ -160,6 +160,20 @@ test("suffix and speaker suggestions", () => {
     assert.equal(normalDate(s), null, s);
   }
   assert.equal(normalDate("29.02.2028"), "2028.02.29");
+  // suggestions while typing the speaker
+  const base = ["Adam Jurga", "Adam Pańczak", "Rafał Piekarski", "Tomasz Poliński", "Jan Maria Rokita"];
+  assert.deepEqual(matchSpeakers("raf", base), ["Rafał Piekarski"]);
+  assert.deepEqual(matchSpeakers("Pi", base), ["Rafał Piekarski"]); // surname
+  assert.deepEqual(matchSpeakers("rafal pie", base), ["Rafał Piekarski"]);
+  assert.deepEqual(matchSpeakers("adam", base), ["Adam Jurga", "Adam Pańczak"]);
+  assert.deepEqual(matchSpeakers("panc", base), ["Adam Pańczak"]); // Polish letters
+  assert.deepEqual(matchSpeakers("maria r", base), ["Jan Maria Rokita"]);
+  assert.deepEqual(matchSpeakers("po", ["Jan Popek", ...base]), ["Jan Popek", "Tomasz Poliński"]);
+  assert.deepEqual(matchSpeakers("ja", ["Adam Jasny", "Jan Nowak"]), ["Jan Nowak", "Adam Jasny"]); // first name first
+  assert.deepEqual(matchSpeakers("", base), base);
+  assert.deepEqual(matchSpeakers("Rafał Piekarski", base), []); // already chosen
+  assert.deepEqual(matchSpeakers("xyz", base), []);
+  assert.equal(matchSpeakers("a", Array.from({ length: 20 }, (_, i) => `Anna ${i}`)).length, 8);
   const known = ["Adam Szumorek", "Rafał Piekarski", "Jan Nowak"];
   assert.equal(similarSpeaker("Adam Szumorek", known), null); // exact
   assert.equal(similarSpeaker("Adam Szumorke", known), "Adam Szumorek"); // swapped letters

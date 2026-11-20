@@ -187,6 +187,26 @@ export function joinSuffix(name, date) {
   return [String(name ?? "").trim(), String(date ?? "").trim()].filter(Boolean).join(" - ");
 }
 
+/**
+ * Remembered speakers for the text typed so far: names whose first name or
+ * surname starts with it ("raf", "piek" and "Rafał Pi" all find "Rafał
+ * Piekarski"; case and Polish letters do not matter), those starting with
+ * it first. Empty text gives the whole list. The name typed exactly is left out.
+ */
+export function matchSpeakers(text, known, limit = 8) {
+  const q = fold(text);
+  if (!q) return known.slice();
+  const starts = [];
+  const words = [];
+  for (const name of known) {
+    const f = fold(name);
+    if (f === q) continue;
+    if (f.startsWith(q)) starts.push(name);
+    else if (f.split(" ").some((_, i, w) => w.slice(i).join(" ").startsWith(q))) words.push(name);
+  }
+  return [...starts, ...words].slice(0, limit);
+}
+
 /** Lower case, no Polish diacritics, single spaces. */
 function fold(name) {
   return String(name ?? "")

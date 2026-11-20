@@ -57,15 +57,52 @@ fn key(name: &str) -> String {
 }
 
 /// Puts `name` first (once, case-insensitively; the new spelling wins) and
-/// keeps at most [`MAX_SPEAKERS`] names.
+/// keeps at most [`MAX_SPEAKERS`] names. A name that looks like a typo of a
+/// remembered one ("Rafał Piekarsi" next to "Rafał Piekarski") is not added,
+/// so a misspelt episode does not spoil the list.
 pub fn remember(list: &mut Vec<String>, name: &str) {
     let k = key(name);
     if k.is_empty() {
         return;
     }
+    let known = list.iter().any(|n| key(n) == k);
+    if !known && list.iter().any(|n| looks_like_typo(name, n)) {
+        return;
+    }
     list.retain(|n| key(n) != k);
     list.insert(0, name.split_whitespace().collect::<Vec<_>>().join(" "));
     list.truncate(MAX_SPEAKERS);
+}
+
+/// Same rule as `similarSpeaker` in the UI: after folding case, spaces and
+/// Polish letters, at most 1 edit apart (2 for names of 10 or more
+/// characters), but not the same name.
+pub fn looks_like_typo(a: &str, b: &str) -> bool {
+    if key(a) == key(b) {
+        return false;
+    }
+    let fa: Vec<char> = fold(&key(a)).chars().collect();
+    let fb: Vec<char> = fold(&key(b)).chars().collect();
+    if fa.len() < 4 {
+        return false;
+    }
+    let limit = if fa.len() >= 10 { 2 } else { 1 };
+    if fa.len().abs_diff(fb.len()) > limit {
+        return false;
+    }
+    let mut prev: Vec<usize> = (0..=fb.len()).collect();
+    for (i, ca) in fa.iter().enumerate() {
+        let mut cur = vec![i + 1];
+        for (j, cb) in fb.iter().enumerate() {
+            cur.push(
+                (prev[j + 1] + 1)
+                    .min(cur[j] + 1)
+                    .min(prev[j] + usize::from(ca != cb)),
+            );
+        }
+        prev = cur;
+    }
+    prev[fb.len()] <= limit
 }
 
 /// Names from pasted text or a .txt file: one per line. Bullets ("-", "*",
@@ -332,11 +369,19 @@ mod tests {
         assert_eq!(l.len(), 3);
         forget(&mut l, "JAN NOWAK");
         assert_eq!(l, ["Adam Szumorek", "ewa kowalska"]);
+        // clearly different names (a typo of a remembered one is not added)
+        let name = |i: u32| {
+            let (x, y) = (
+                char::from(b'a' + (i / 26) as u8),
+                char::from(b'a' + (i % 26) as u8),
+            );
+            format!("Osoba {x}{x}{x}{y}{y}{y}")
+        };
         for i in 0..400 {
-            remember(&mut l, &format!("Osoba {i}"));
+            remember(&mut l, &name(i));
         }
         assert_eq!(l.len(), MAX_SPEAKERS);
-        assert_eq!(l[0], "Osoba 399");
+        assert_eq!(l[0], name(399));
     }
 
     #[test]
@@ -357,6 +402,22 @@ mod tests {
         let added = add_all(&mut l, &parse_list("Ewa Kowalska\njan nowak\nAnna Lis"));
         assert_eq!(added, 2);
         assert_eq!(l, ["Jan Nowak", "Ewa Kowalska", "Anna Lis"]);
+    }
+
+    #[test]
+    fn a_typo_of_a_remembered_speaker_is_not_remembered() {
+        let mut l = vec!["Rafał Piekarski".to_string(), "Jan Nowak".to_string()];
+        assert!(looks_like_typo("Rafał Piekarsi", "Rafał Piekarski"));
+        assert!(looks_like_typo("rafal piekarski", "Rafał Piekarski"));
+        assert!(!looks_like_typo("Rafał Piekarski", "Rafał Piekarski"));
+        assert!(!looks_like_typo("Anna Nowak", "Jan Nowak"));
+        assert!(!looks_like_typo("Mac Johnson", "Jim Johnson"));
+        remember(&mut l, "Rafał Piekarsi");
+        assert_eq!(l, ["Rafał Piekarski", "Jan Nowak"]);
+        // the exact name still moves to the front, a new person is added
+        remember(&mut l, "Jan Nowak");
+        remember(&mut l, "Jerzy Sikora");
+        assert_eq!(l, ["Jerzy Sikora", "Jan Nowak", "Rafał Piekarski"]);
     }
 
     #[test]

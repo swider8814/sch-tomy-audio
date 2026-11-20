@@ -451,3 +451,23 @@ button.scroll-hint { margin-right: auto; font-size: 0.9rem; text-decoration: non
   box-shadow: 0 4px 16px var(--shadow);
 }
 .badge[data-tip], .info-dot { cursor: help; }
+
+/* speaker suggestions (ui/js/autocomplete.js) */
+.suggest-menu {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px var(--shadow);
+  font-size: 0.9rem;
+}
+.suggest-menu li { padding: 0.3rem 0.6rem; cursor: pointer; }
+.suggest-menu li:hover { background: var(--muted-bg); }
+.suggest-menu li.active { background: var(--accent); color: var(--on-accent); }

@@ -3,6 +3,7 @@
 import { formatDate, formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, setupScrollHints, setupTooltips, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
+import { attachSuggestions } from "./autocomplete.js";
 import { openSettings } from "./settings.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, effectiveTheme } from "./theme.js";
@@ -15,6 +16,7 @@ import {
   missingSermon,
   runFraction,
   joinSuffix,
+  matchSpeakers,
   normalDate,
   similarSpeaker,
   splitSuffix,
@@ -180,8 +182,6 @@ function createRow(id) {
     placeholder: "Mówca",
     "aria-label": "Mówca",
   });
-  speaker.setAttribute("list", "speaker-list");
-  speaker.addEventListener("focus", fillSpeakerList);
   const date = h("input", {
     class: "date-input",
     type: "text",
@@ -208,6 +208,8 @@ function createRow(id) {
   };
   sermon.addEventListener("change", save);
   speaker.addEventListener("change", save);
+  // remembered speakers, filtered while typing
+  attachSuggestions(speaker, (text) => matchSpeakers(text, app.speakers), save);
   date.addEventListener("change", save);
   // Enter jumps to the title of the next visible file, so titles can be typed one after another.
   sermon.addEventListener("keydown", (ev) => {
@@ -502,15 +504,10 @@ async function askNotifyPermission() {
 
 // --------------------------------------------------------------- speakers
 
-/** Fills the shared <datalist> with the remembered speakers. */
-function fillSpeakerList() {
-  const list = $("#speaker-list");
-  list.replaceChildren(...app.speakers.map((n) => h("option", { value: n })));
-}
-
 /** Warns under the speaker field when the name looks like a misspelling of a known one. */
 function renderSpeakerHint(r, job) {
-  const editable = job.status === "waiting" || job.status === "cancelled" || job.status === "error";
+  // whenever the fields can be edited (also while the start is still being analysed)
+  const editable = !busy(job) && job.status !== "done";
   const { name, date } = splitSuffix(job.titleSuffix);
   const match = editable ? similarSpeaker(name, app.speakers) : null;
   r.speakerHint.hidden = !match;
