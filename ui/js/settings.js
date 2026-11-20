@@ -49,6 +49,7 @@ export function openSettings(tab = "basic") {
   $("#update-status").textContent = "";
   $("#bundle-status").textContent = "";
   $("#speaker-status").textContent = "";
+  $("#speaker-text").value = "";
   showTab(tab);
   dlg().showModal();
 }
@@ -423,8 +424,16 @@ function setup() {
     try {
       const saved = await invoke("save_settings", { settings: s });
       setSettings(saved);
+      // names pasted or loaded from a file but not added yet: "Zapisz" adds them too
+      let added = "";
+      if ($("#speaker-text").value.trim()) {
+        const r = await invoke("add_speakers", { text: $("#speaker-text").value });
+        app.speakers = r.speakers;
+        $("#speaker-text").value = "";
+        added = r.added ? ` Dodano mówców: ${r.added}.` : "";
+      }
       dlg().close();
-      toast("Zapisano ustawienia.");
+      toast(`Zapisano ustawienia.${added}`);
     } catch (e) {
       $("#settings-error").textContent = errorText(e);
     }
