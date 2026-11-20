@@ -15,7 +15,7 @@
 //!   SHA-256 is the one listed in the signed sums;
 //! * writes it under a temporary name in the app's data folder (never inside
 //!   the app bundle, which would break the macOS signature), runs it once
-//!   with `--version` (killed after [`VERSION_TIMEOUT`]) and only then
+//!   with `--version` (killed after 90 s) and only then
 //!   renames it to `yt-dlp-<version>[.exe]`; a file that does not start or
 //!   reports another version is removed and the previous yt-dlp stays in use.
 //!
@@ -249,7 +249,7 @@ fn signature_packet(data: &[u8]) -> Option<&[u8]> {
     (tag == 2).then(|| data.get(header..header + len)).flatten()
 }
 
-/// SHA-256 of `file` from a `SHA2-256SUMS` text ("<hex>  <name>" lines).
+/// SHA-256 of `file` from a `SHA2-256SUMS` text (`<hex>  <name>` lines).
 pub fn checksum_for(sums: &str, file: &str) -> Option<[u8; 32]> {
     sums.lines().find_map(|line| {
         let (hex, name) = line.trim().split_once(char::is_whitespace)?;
