@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    App icon source. Regenerate the platform icons with scripts/make-icon.sh.
+
+    The mark sits on the 1000x1000 grid of the SCh Tomy sign (schtomy.pl
+    favicon): the frame is 100 units thick with a gap 320-680 in the top
+    edge. A microphone replaces the cross; every stroke is 100 units, like
+    the frame. Colours from the schtomy.pl palette: ink #16130f,
+    paper #faf7f2, gold #cdaa68.
+
+    The holder and the stem are one filled outline, so no seam shows where
+    they meet: the stem starts at y 620, inside the holder's ring (inner
+    edge at 570 in the middle, outer edge at 665 where the stem's sides
+    are), so it neither pokes above the ring nor leaves a gap below it.
+    Both subpaths run counter-clockwise, so their overlap stays filled
+    under the nonzero rule.
+  -->
+  <rect x="40" y="40" width="944" height="944" rx="210" fill="#16130f"/>
+  <g transform="translate(172 172) scale(0.68)">
+    <path fill="#faf7f2" d="M680 0H1000V1000H0V0H320V100H100V900H900V100H680Z"/>
+    <g fill="#cdaa68">
+      <rect x="400" y="0" width="200" height="480" rx="100"/>
+      <path d="M230 400A270 270 0 0 0 770 400H670A170 170 0 0 1 330 400Z
+               M450 620V800H550V620Z"/>
+    </g>
+  </g>
+</svg>

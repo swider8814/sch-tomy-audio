@@ -3,6 +3,7 @@
 # Tauri CLI. Run from the repository root after `npm ci`.
 # Only the files listed in tauri.conf.json (plus icon.png) are kept; the
 # CLI also writes Android, iOS and Windows Store icons the app does not use.
+# The SVG is also copied to ui/app-icon.svg (the icon in the top bar).
 set -euo pipefail
 src=src-tauri/icons/source.svg
 dst=src-tauri/icons
@@ -12,3 +13,4 @@ npx tauri icon "$src" -o "$tmp"
 for f in 32x32.png 128x128.png 128x128@2x.png icon.icns icon.ico icon.png; do
   cp "$tmp/$f" "$dst/$f"
 done
+cp "$src" ui/app-icon.svg
