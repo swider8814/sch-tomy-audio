@@ -48,11 +48,14 @@ On Linux the app needs `libwebkit2gtk-4.1-dev`; Linux is only a dev platform.
   `INSTRUKCJA.md` is in Polish.
 * Originals are never overwritten. Output files are never overwritten either
   (a `-2`, `-3` suffix is added).
-* No telemetry, no network access. Two exceptions only: the YouTube
-  download in `youtube.rs`, started explicitly by the user, and the update
+* No telemetry, no network access. Three exceptions only: the YouTube
+  download in `youtube.rs`, started explicitly by the user; the update
   check in `ui/js/update.js` (one GET of the latest release from the GitHub
   API, can be turned off in the settings; it never downloads or installs
-  anything, it only opens the releases page in the browser).
+  the app, it only opens the releases page in the browser); and the yt-dlp
+  update in `ytdlp_update.rs`, offered after a failed YouTube download and
+  in the settings, and run only when the user confirms it (signed `SHA2-256SUMS` verified
+  with the pinned yt-dlp key, never anything else downloaded or run).
 * ffmpeg/ffprobe/yt-dlp are always invoked with an argument list
   (`std::process::Command`), never through a shell; ffmpeg inputs are
   absolute paths with `-protocol_whitelist file`; yt-dlp gets only a

@@ -211,7 +211,7 @@ pub struct YoutubeAdded {
 /// is downloaded in list order, then processed like a dropped file.
 #[tauri::command]
 pub fn add_youtube(app: AppHandle, state: St<'_>, text: String) -> Result<YoutubeAdded, String> {
-    if let Err(e) = &state.yt {
+    if let Err(e) = &state.yt_tools() {
         // friendly text only; the technical cause is in e.details
         return Err(e.user_message());
     }
@@ -854,6 +854,156 @@ pub fn start_job(app: AppHandle, state: St<'_>, id: u64) -> bool {
     drop(g);
     state.wake.notify_all();
     ok
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolUpdated {
+    /// A newer yt-dlp was installed.
+    updated: bool,
+    /// yt-dlp version now in use.
+    version: String,
+    /// Failed downloads started again.
+    retried: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolInfo {
+    /// yt-dlp version in use, when known.
+    version: Option<String>,
+    /// A copy updated by the user is in use (not the bundled one).
+    downloaded: bool,
+}
+
+/// A failed yt-dlp update: friendly text and technical details (shown under
+/// "Szczegóły techniczne" in the settings; in the job logs for downloads).
+#[derive(Serialize)]
+pub struct ToolUpdateError {
+    message: String,
+    details: String,
+}
+
+/// yt-dlp version for the settings ("O programie").
+#[tauri::command]
+pub fn youtube_tool_info(state: St<'_>) -> ToolInfo {
+    let bundled = podcast_core::ytdlp_update::bundled_version();
+    let downloaded = !state.ytdlp_override
+        && podcast_core::ytdlp_update::preferred(&state.ytdlp_dir, bundled.as_ref()).is_some();
+    ToolInfo {
+        version: state.ytdlp_version().map(|v| v.to_string()),
+        downloaded,
+    }
+}
+
+/// Updates yt-dlp after a failed YouTube download or from the settings,
+/// when the user agreed
+/// (button next to the error). The only network access besides YouTube
+/// itself and the update check; every check is in
+/// `podcast_core::ytdlp_update`. Failed downloads that offered the update
+/// are started again with the new yt-dlp.
+#[tauri::command]
+pub async fn update_youtube_tool(
+    app: AppHandle,
+    state: St<'_>,
+) -> Result<ToolUpdated, ToolUpdateError> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || update_tool_blocking(&app, &state))
+        .await
+        .map_err(|e| ToolUpdateError {
+            message: "Nie udało się zaktualizować narzędzia do pobierania z YouTube.".into(),
+            details: e.to_string(),
+        })?
+}
+
+/// Error text shown when the newest yt-dlp is in use and downloads still fail.
+const UP_TO_DATE_MESSAGE: &str = "Nie udało się pobrać nagrania z YouTube, choć narzędzie do YouTube jest w najnowszej wersji. YouTube mógł chwilowo zablokować pobieranie: spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.";
+
+fn update_tool_blocking(app: &AppHandle, state: &AppState) -> Result<ToolUpdated, ToolUpdateError> {
+    use podcast_core::ytdlp_update::{self, Outcome};
+    use std::sync::atomic::Ordering;
+    if state.ytdlp_override {
+        return Err(ToolUpdateError {
+            message: "Aplikacja używa innego yt-dlp (wskazanego w ustawieniach systemu), więc go nie aktualizuje.".into(),
+            details: format!("{} is set", podcast_core::youtube::ENV_YTDLP),
+        });
+    }
+    if state.ytdlp_updating.swap(true, Ordering::SeqCst) {
+        return Err(ToolUpdateError {
+            message: "Aktualizacja już trwa. Poczekaj chwilę.".into(),
+            details: String::new(),
+        });
+    }
+    struct Done<'a>(&'a AppState);
+    impl Drop for Done<'_> {
+        fn drop(&mut self) {
+            self.0.ytdlp_updating.store(false, Ordering::SeqCst);
+        }
+    }
+    let _done = Done(state);
+    let current = state.ytdlp_version();
+    let mut result =
+        ytdlp_update::update(&state.ytdlp_dir, current.as_ref(), &ytdlp_update::http_get);
+    if let Ok(Outcome::Updated { path, .. }) = &result {
+        if !state.set_ytdlp(path.clone()) {
+            // e.g. Deno is missing too: the downloads would still fail
+            result = Err(podcast_core::CoreError::new(
+                podcast_core::ErrorKind::YouTubeToolMissing,
+                format!(
+                    "updated yt-dlp at {} cannot be used without Deno",
+                    path.display()
+                ),
+            ));
+        }
+    }
+    let mut g = state.lock();
+    let mut retried = 0;
+    let offered = |j: &Job| {
+        j.view.status == Status::Error
+            && j.needs_download()
+            && j.view.error.as_ref().is_some_and(|e| e.can_update_tool)
+    };
+    for j in g.jobs.iter_mut().filter(|j| offered(j)) {
+        match &result {
+            Ok(Outcome::Updated { to, .. }) => {
+                j.log
+                    .push_str(&format!("\nyt-dlp updated to {to}, downloading again\n"));
+                j.view.error = None;
+                j.view.status = Status::Downloading;
+                j.view.progress = 0.0;
+                retried += 1;
+            }
+            Ok(Outcome::UpToDate { version }) => {
+                j.log
+                    .push_str(&format!("\nyt-dlp {version} is the newest release\n"));
+                if let Some(e) = j.view.error.as_mut() {
+                    // the stored text pointed to the update button
+                    e.can_update_tool = false;
+                    e.message = UP_TO_DATE_MESSAGE.into();
+                }
+            }
+            Err(e) => j.log.push_str(&format!("\nyt-dlp update failed: {e}\n")),
+        }
+    }
+    emit_jobs(app, &g);
+    drop(g);
+    state.wake.notify_all();
+    match result {
+        Ok(Outcome::Updated { to, .. }) => Ok(ToolUpdated {
+            updated: true,
+            version: to.to_string(),
+            retried,
+        }),
+        Ok(Outcome::UpToDate { version }) => Ok(ToolUpdated {
+            updated: false,
+            version: version.to_string(),
+            retried,
+        }),
+        Err(e) => Err(ToolUpdateError {
+            message: e.user_message(),
+            details: e.details,
+        }),
+    }
 }
 
 #[tauri::command]

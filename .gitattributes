@@ -1,0 +1,2 @@
+# signed release files: exact bytes, never line-ending conversion
+crates/podcast-core/tests/fixtures/ytdlp/* binary

@@ -10,7 +10,7 @@ Aplikacja przygotowuje nagrania kazań do podcastu kościoła. Dla każdego plik
 
 Oryginalne nagrania nigdy nie są zmieniane. Gotowy plik ma nazwę z daty, tytułu i mówcy z dopiskiem „-podcast”, na przykład `2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3`. Gdy tych danych nie ma, nazwa powstaje z nazwy oryginału.
 
-Aplikacja działa bez internetu i niczego o Tobie nie wysyła. Internetu używa tylko w dwóch sytuacjach: przy pobieraniu nagrania z YouTube, gdy sam wkleisz link, oraz przy sprawdzaniu, czy jest nowa wersja aplikacji (patrz punkt 10).
+Aplikacja działa bez internetu i niczego o Tobie nie wysyła. Internetu używa tylko w trzech sytuacjach: przy pobieraniu nagrania z YouTube, gdy sam wkleisz link, przy sprawdzaniu, czy jest nowa wersja aplikacji (patrz punkt 10), oraz gdy po nieudanym pobieraniu z YouTube zgodzisz się na aktualizację narzędzia do YouTube (patrz punkt 5a).
 
 ## 1. Pobranie
 
@@ -106,7 +106,9 @@ Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,
 
 **Lista linków w pliku.** Jeśli masz plik tekstowy (.txt) z wieloma linkami, kliknij w tym samym okienku **Wczytaj listę z pliku (.txt)** albo po prostu przeciągnij ten plik na okno aplikacji. W pliku każdy link jest w osobnej linii; puste linie i linie zaczynające się od `#` (np. `# Piotrków 2025`) są pomijane, powtórzone linki też.
 
-Z YouTube aplikacja łączy się tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**. YouTube czasem zmienia sposób działania; wtedy pomaga nowa wersja aplikacji.
+Z YouTube aplikacja łączy się tylko wtedy, gdy sam wkleisz link. Jeśli pobieranie się nie uda („YouTube zablokował pobieranie”), spróbuj później albo pobierz plik w inny sposób i przeciągnij go do aplikacji. Przy błędzie przy nagraniu jest przycisk **Spróbuj ponownie**.
+
+YouTube czasem zmienia sposób działania i wtedy program, którym aplikacja pobiera nagrania (yt-dlp), przestaje działać. Dlatego przy nieudanym pobieraniu jest też przycisk **Zaktualizuj narzędzie**. Po kliknięciu aplikacja zapyta, czy pobrać najnowszą wersję tego programu ze strony jego autorów na GitHubie. Gdy się zgodzisz, pobierze ją, sprawdzi podpis cyfrowy autorów (plik bez poprawnego podpisu nie zostanie użyty) i od razu spróbuje jeszcze raz pobrać nagrania, których nie udało się pobrać. Jeśli masz już najnowszą wersję, aplikacja o tym napisze: wtedy YouTube najpewniej chwilowo blokuje pobieranie, więc spróbuj później. Bez Twojej zgody aplikacja niczego nie aktualizuje. To samo możesz zrobić w każdej chwili w Ustawieniach, w zakładce „O programie”, przyciskiem **Sprawdź i zaktualizuj** (tam też widać, której wersji yt-dlp aplikacja używa).
 
 ## 6. Ustawianie początku i końca (Sprawdź początek / Edytuj cięcie)
 

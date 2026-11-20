@@ -5,8 +5,10 @@ use podcast_core::pipeline::{self, Cut, JobInput};
 use podcast_core::settings::Settings;
 use podcast_core::teaser::{self, PatternMeta, PatternStore};
 use podcast_core::youtube::{self, YtTools};
-use podcast_core::{vad, CancelToken, CoreError, Tools};
+use podcast_core::ytdlp_update;
+use podcast_core::{vad, CancelToken, CoreError, ErrorKind, Tools};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -35,7 +37,15 @@ pub struct AppState {
     inner: Mutex<Inner>,
     pub wake: Condvar,
     pub tools: Result<Tools, CoreError>,
-    pub yt: Result<YtTools, CoreError>,
+    /// yt-dlp and Deno; yt-dlp is replaced after an update (see
+    /// `podcast_core::ytdlp_update`).
+    yt: Mutex<Result<YtTools, CoreError>>,
+    /// Updated yt-dlp copies live here.
+    pub ytdlp_dir: PathBuf,
+    /// An update of yt-dlp is running.
+    pub ytdlp_updating: AtomicBool,
+    /// `SCHTOMY_YTDLP` names the yt-dlp to use: it is never replaced.
+    pub ytdlp_override: bool,
     /// Default folder for YouTube audio (Downloads/SCh Tomy YouTube); the
     /// setting `youtube_dir` overrides it.
     pub default_youtube_dir: PathBuf,
@@ -60,12 +70,53 @@ pub struct AppState {
 const SHUTDOWN_WAIT: Duration = Duration::from_secs(20);
 
 impl AppState {
+    /// yt-dlp and Deno as currently in use.
+    pub fn yt_tools(&self) -> Result<YtTools, CoreError> {
+        self.yt.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    /// Switches to an updated yt-dlp, also when the bundled one could not
+    /// be found at start. Returns false when it cannot be used.
+    pub fn set_ytdlp(&self, path: PathBuf) -> bool {
+        if self.ytdlp_override {
+            return false;
+        }
+        let mut yt = self.yt.lock().unwrap_or_else(|e| e.into_inner());
+        match yt.as_mut() {
+            Ok(t) => {
+                t.ytdlp = path;
+                true
+            }
+            Err(_) => match YtTools::with_ytdlp(path) {
+                Ok(t) => {
+                    *yt = Ok(t);
+                    true
+                }
+                Err(_) => false,
+            },
+        }
+    }
+
+    /// Version of the yt-dlp in use, when known (not for `SCHTOMY_YTDLP`, and
+    /// none when no yt-dlp could be found, so an update always installs one).
+    pub fn ytdlp_version(&self) -> Option<ytdlp_update::Version> {
+        if self.ytdlp_override || self.yt_tools().is_err() {
+            return None;
+        }
+        let bundled = ytdlp_update::bundled_version();
+        ytdlp_update::preferred(&self.ytdlp_dir, bundled.as_ref())
+            .map(|(_, v)| v)
+            .or(bundled)
+    }
+
     pub fn new(config_dir: &Path, data_dir: &Path, download_dir: Option<PathBuf>) -> Self {
         let settings_path = config_dir.join("settings.json");
         let (settings, err) = Settings::load(&settings_path);
         let store = PatternStore::new(data_dir.join("patterns"));
         let patterns = Arc::new(store.load_all());
         let queue_path = data_dir.join("queue.json");
+        let ytdlp_dir = ytdlp_update::tools_dir(data_dir);
+        let ytdlp_override = std::env::var_os(youtube::ENV_YTDLP).is_some();
         let speakers_path = data_dir.join("speakers.json");
         let speakers = podcast_core::speakers::load(&speakers_path);
         let history_path = data_dir.join("history.json");
@@ -108,7 +159,10 @@ impl AppState {
             }),
             wake: Condvar::new(),
             tools: Tools::locate(),
-            yt: YtTools::locate(),
+            yt: Mutex::new(initial_yt_tools(&ytdlp_dir, ytdlp_override)),
+            ytdlp_dir,
+            ytdlp_updating: AtomicBool::new(false),
+            ytdlp_override,
             default_youtube_dir: download_dir
                 .unwrap_or_else(|| data_dir.join("downloads"))
                 .join("SCh Tomy YouTube"),
@@ -277,10 +331,33 @@ pub fn start_workers(app: AppHandle, state: Arc<AppState>) {
         .extend(handles);
 }
 
+/// yt-dlp and Deno at start: a stored updated yt-dlp newer than the bundled
+/// one is used instead of it (also when the bundled one is missing); an
+/// explicit `SCHTOMY_YTDLP` wins.
+fn initial_yt_tools(ytdlp_dir: &Path, ytdlp_override: bool) -> Result<YtTools, CoreError> {
+    let located = YtTools::locate();
+    if ytdlp_override {
+        return located;
+    }
+    let bundled = ytdlp_update::bundled_version();
+    match (
+        located,
+        ytdlp_update::preferred(ytdlp_dir, bundled.as_ref()),
+    ) {
+        (Ok(mut t), Some((path, _))) => {
+            t.ytdlp = path;
+            Ok(t)
+        }
+        (Err(e), Some((path, _))) => YtTools::with_ytdlp(path).map_err(|_| e),
+        (located, None) => located,
+    }
+}
+
 fn friendly(e: &CoreError) -> ErrorView {
     ErrorView {
         message: e.user_message(),
         details: e.details.clone(),
+        can_update_tool: false,
     }
 }
 
@@ -613,7 +690,9 @@ fn download_worker(app: AppHandle, state: Arc<AppState>) {
     while let Some(task) = next_download(&state) {
         let mut log = format!("YouTube: {}\n", task.url);
         let result = (|| -> Result<(PathBuf, youtube::VideoInfo), CoreError> {
-            let tools = state.yt.as_ref().map_err(Clone::clone)?;
+            let tools = state.yt_tools()?;
+            log.push_str(&format!("yt-dlp: {}\n", tools.ytdlp.display()));
+            let tools = &tools;
             let id = youtube::parse_video_id(&task.url)?;
             let info = youtube::fetch_metadata(tools, &id, &task.cancel)?;
             log.push_str(&format!(
@@ -654,9 +733,16 @@ fn download_worker(app: AppHandle, state: Arc<AppState>) {
                         ErrorView {
                             message: "Pobieranie przerwane. Kliknij „Spróbuj ponownie”, żeby pobrać jeszcze raz.".into(),
                             details: e.details.clone(),
+                            can_update_tool: false,
                         }
                     } else {
-                        friendly(&e)
+                        ErrorView {
+                            can_update_tool: matches!(
+                                e.kind,
+                                ErrorKind::YouTube | ErrorKind::YouTubeBlocked
+                            ),
+                            ..friendly(&e)
+                        }
                     });
                 }
             }

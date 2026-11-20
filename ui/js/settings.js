@@ -1,7 +1,7 @@
 // Settings dialog.
 
 import { $, $$, h, invoke, toast, errorText, pickFiles, tauriDialog, tauriOpener } from "./util.js";
-import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./app.js";
+import { app, setSettings, setPatterns, setUpdate, updateYoutubeTool, MEDIA_EXTENSIONS } from "./app.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, themeOf } from "./theme.js";
 import { formatTime } from "./format.js";
@@ -50,9 +50,23 @@ export function openSettings(tab = "basic") {
   $("#bundle-status").textContent = "";
   $("#speaker-status").textContent = "";
   $("#notify-status").textContent = "";
+  $("#yt-tool-status").textContent = "";
+  showYoutubeTool();
   $("#speaker-text").value = "";
   showTab(tab);
   dlg().showModal();
+}
+
+/** Version of the yt-dlp in use, in the "O programie" tab. */
+async function showYoutubeTool() {
+  try {
+    const t = await invoke("youtube_tool_info");
+    $("#yt-tool-version").textContent = t.version ?? "nieznana";
+    $("#yt-tool-source").textContent = t.downloaded ? "(zaktualizowana)" : "(dołączona do aplikacji)";
+  } catch {
+    $("#yt-tool-version").textContent = "nieznana";
+    $("#yt-tool-source").textContent = "";
+  }
 }
 
 const TABS = ["basic", "sound", "advanced", "keys", "about"];
@@ -383,6 +397,24 @@ function setup() {
     }
   });
   $("#bundle-import").addEventListener("click", importBundle);
+  $("#yt-tool-update").addEventListener("click", async () => {
+    const btn = $("#yt-tool-update");
+    const status = $("#yt-tool-status");
+    btn.disabled = true;
+    status.textContent = "";
+    try {
+      const r = await updateYoutubeTool();
+      if (r) {
+        status.replaceChildren(r.text);
+        if (r.details) {
+          status.append(h("details", { class: "tech" }, h("summary", {}, "Szczegóły techniczne"), h("pre", {}, r.details)));
+        }
+      }
+    } finally {
+      btn.disabled = false;
+      showYoutubeTool();
+    }
+  });
   $("#notify-test").addEventListener("click", async () => {
     const status = $("#notify-status");
     try {

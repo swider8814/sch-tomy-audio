@@ -261,3 +261,12 @@ programie (version, update check). A validation error switches to its tab.
     known; the date comes from a "Data: 01.11.2026" line (a real calendar
     date), else the upload date. Similar names are all remembered (two
     people can differ by one letter); the UI marks such pairs instead.
+    Since v0.1.7 a failed download offers "Zaktualizuj narzędzie" (also
+    "Sprawdź i zaktualizuj" in the settings, "O programie"): after
+    the user confirms, `ytdlp_update` fetches the latest yt-dlp release,
+    verifies the signed `SHA2-256SUMS` with the pinned yt-dlp key (own
+    OpenPGP v4 / RSA PKCS #1 v1.5 check with `num-bigint`, no GnuPG), checks
+    the binary's SHA-256, stores it as `<data>/tools/yt-dlp-<version>`,
+    test-runs it and retries the failed downloads. Nothing is checked at
+    start (decided with the owner: no background network use); a stored
+    copy is used only while it is newer than the bundled one.

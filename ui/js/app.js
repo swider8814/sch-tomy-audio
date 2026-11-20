@@ -41,6 +41,7 @@ export const app = {
   speakers: [], // remembered speaker names, most recent first
   run: null, // { started: ms, ids: Set } while files are queued or processing
   update: null, // { version, url } when a newer release was found and not dismissed
+  toolUpdating: false, // yt-dlp is being updated (button next to a failed download)
 };
 
 const rows = new Map(); // id -> { tr, title, start, status, result, actions }
@@ -355,6 +356,25 @@ function updateRow(job) {
         h("button", { type: "button", class: "small", onclick: () => retry(job.id) }, "Spróbuj ponownie"),
       ),
     );
+    if (job.error.canUpdateTool) {
+      st.append(
+        h(
+          "div",
+          {},
+          h(
+            "button",
+            {
+              type: "button",
+              class: "small",
+              disabled: app.toolUpdating,
+              onclick: updateYoutubeToolFromRow,
+              title: "Pobiera najnowszą wersję programu yt-dlp, którym aplikacja pobiera nagrania z YouTube, i ponawia pobieranie",
+            },
+            app.toolUpdating ? "Aktualizuję..." : "Zaktualizuj narzędzie",
+          ),
+        ),
+      );
+    }
   }
   if (job.analysisNote) st.append(h("div", { class: "warn-text" }, job.analysisNote));
   if (job.duplicate && job.status !== "done") {
@@ -744,6 +764,52 @@ async function startOne(id) {
   } catch (e) {
     toast(errorText(e));
   }
+}
+
+/**
+ * Asks, then updates yt-dlp (signature checked in the backend) and downloads
+ * the failed files again. Used next to a failed download and in the
+ * settings. Returns null when cancelled, else { ok, text, details } for the
+ * user (details: technical text of a failed update).
+ */
+export async function updateYoutubeTool() {
+  if (app.toolUpdating) return null;
+  const ok = await tauriDialog().ask(
+    "Aplikacja pobierze z GitHuba najnowszą wersję yt-dlp, programu, którym pobiera nagrania z YouTube. Przed użyciem sprawdzi jego podpis cyfrowy. Potem spróbuje jeszcze raz pobrać nagrania, których nie udało się pobrać. Zaktualizować?",
+    { title: "Aktualizacja narzędzia do YouTube", kind: "info", okLabel: "Zaktualizuj", cancelLabel: "Anuluj" },
+  );
+  if (!ok) return null;
+  const rerender = () => {
+    for (const id of app.order) updateRow(app.jobs.get(id));
+  };
+  app.toolUpdating = true;
+  rerender();
+  try {
+    const r = await invoke("update_youtube_tool");
+    if (r.updated) {
+      return {
+        ok: true,
+        text: r.retried
+          ? `Zaktualizowano narzędzie do YouTube (wersja ${r.version}). Pobieram ponownie: ${r.retried} ${plikow(r.retried)}.`
+          : `Zaktualizowano narzędzie do YouTube (wersja ${r.version}).`,
+      };
+    }
+    return {
+      ok: true,
+      text: `Masz już najnowszą wersję narzędzia do YouTube (${r.version}). Jeśli pobieranie nie działa, YouTube mógł je chwilowo zablokować: spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.`,
+    };
+  } catch (e) {
+    return { ok: false, text: errorText(e), details: e?.details || "" };
+  } finally {
+    app.toolUpdating = false;
+    rerender();
+  }
+}
+
+/** The button next to a failed download: the result as a message. */
+async function updateYoutubeToolFromRow() {
+  const r = await updateYoutubeTool();
+  if (r) toast(r.text, 10000);
 }
 
 async function retry(id) {
