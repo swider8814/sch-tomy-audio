@@ -51,7 +51,8 @@ When reviewing changes, check in particular:
    update check (`ui/js/update.js`: one GET to the GitHub API, CSP
    `connect-src` allows only `https://api.github.com`, the opener capability
    only this repository's releases page), and the yt-dlp update offered after
-   a failed YouTube download and run only when the user confirms it
+   a failed YouTube download or in the settings and run only when the user
+   confirms it
    (`ytdlp_update.rs`: signed sums verified with the pinned yt-dlp key,
    SHA-256 of the binary checked, test run, stored in the app data folder;
    threat model T14). No telemetry, no self-update of the app.

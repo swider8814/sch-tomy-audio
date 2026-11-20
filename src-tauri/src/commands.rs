@@ -867,7 +867,29 @@ pub struct ToolUpdated {
     retried: usize,
 }
 
-/// Updates yt-dlp after a failed YouTube download, when the user agreed
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolInfo {
+    /// yt-dlp version in use, when known.
+    version: Option<String>,
+    /// A copy updated by the user is in use (not the bundled one).
+    downloaded: bool,
+}
+
+/// yt-dlp version for the settings ("O programie").
+#[tauri::command]
+pub fn youtube_tool_info(state: St<'_>) -> ToolInfo {
+    let bundled = podcast_core::ytdlp_update::bundled_version();
+    let downloaded =
+        podcast_core::ytdlp_update::preferred(&state.ytdlp_dir, bundled.as_ref()).is_some();
+    ToolInfo {
+        version: state.ytdlp_version().map(|v| v.to_string()),
+        downloaded,
+    }
+}
+
+/// Updates yt-dlp after a failed YouTube download or from the settings,
+/// when the user agreed
 /// (button next to the error). The only network access besides YouTube
 /// itself and the update check; every check is in
 /// `podcast_core::ytdlp_update`. Failed downloads that offered the update

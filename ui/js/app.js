@@ -367,7 +367,7 @@ function updateRow(job) {
               type: "button",
               class: "small",
               disabled: app.toolUpdating,
-              onclick: updateYoutubeTool,
+              onclick: updateYoutubeToolFromRow,
               title: "Pobiera najnowszą wersję programu yt-dlp, którym aplikacja pobiera nagrania z YouTube, i ponawia pobieranie",
             },
             app.toolUpdating ? "Aktualizuję..." : "Zaktualizuj narzędzie",
@@ -767,16 +767,17 @@ async function startOne(id) {
 }
 
 /**
- * After a failed YouTube download: asks, then updates yt-dlp (signature
- * checked in the backend) and downloads the failed files again.
+ * Asks, then updates yt-dlp (signature checked in the backend) and downloads
+ * the failed files again. Used next to a failed download and in the
+ * settings. Returns null when cancelled, else { ok, text } for the user.
  */
-async function updateYoutubeTool() {
-  if (app.toolUpdating) return;
+export async function updateYoutubeTool() {
+  if (app.toolUpdating) return null;
   const ok = await tauriDialog().ask(
     "Aplikacja pobierze z GitHuba najnowszą wersję yt-dlp, programu, którym pobiera nagrania z YouTube. Przed użyciem sprawdzi jego podpis cyfrowy. Potem spróbuje jeszcze raz pobrać nagrania, których nie udało się pobrać. Zaktualizować?",
     { title: "Aktualizacja narzędzia do YouTube", kind: "info", okLabel: "Zaktualizuj", cancelLabel: "Anuluj" },
   );
-  if (!ok) return;
+  if (!ok) return null;
   const rerender = () => {
     for (const id of app.order) updateRow(app.jobs.get(id));
   };
@@ -785,24 +786,29 @@ async function updateYoutubeTool() {
   try {
     const r = await invoke("update_youtube_tool");
     if (r.updated) {
-      toast(
-        r.retried
+      return {
+        ok: true,
+        text: r.retried
           ? `Zaktualizowano narzędzie do YouTube (wersja ${r.version}). Pobieram ponownie: ${r.retried} ${plikow(r.retried)}.`
           : `Zaktualizowano narzędzie do YouTube (wersja ${r.version}).`,
-        7000,
-      );
-    } else {
-      toast(
-        `Masz już najnowszą wersję narzędzia do YouTube (${r.version}). YouTube mógł chwilowo zablokować pobieranie: spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.`,
-        10000,
-      );
+      };
     }
+    return {
+      ok: true,
+      text: `Masz już najnowszą wersję narzędzia do YouTube (${r.version}). Jeśli pobieranie nie działa, YouTube mógł je chwilowo zablokować: spróbuj ponownie za jakiś czas albo pobierz plik w inny sposób i przeciągnij go do aplikacji.`,
+    };
   } catch (e) {
-    toast(errorText(e), 9000);
+    return { ok: false, text: errorText(e) };
   } finally {
     app.toolUpdating = false;
     rerender();
   }
+}
+
+/** The button next to a failed download: the result as a message. */
+async function updateYoutubeToolFromRow() {
+  const r = await updateYoutubeTool();
+  if (r) toast(r.text, 10000);
 }
 
 async function retry(id) {

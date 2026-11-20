@@ -111,10 +111,10 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 No telemetry. Network access happens only in three places: the YouTube
 download started by the user; the update check (one request to
 `api.github.com/repos/swider8814/sch-tomy-audio/releases/latest` at start,
-which can be turned off in Ustawienia, O programie); and, only after a
-failed YouTube download and only when the user confirms it, the update of
-yt-dlp from its GitHub releases (signature checked with the yt-dlp signing
-key built into the app, see `docs/threat-model.md`, T14). Nothing about the
-user or their files is sent, and app updates are never downloaded or
+which can be turned off in Ustawienia, O programie); and, only when the
+user starts it (after a failed YouTube download or in Ustawienia, O
+programie) and confirms it, the update of yt-dlp from its GitHub releases
+(signature checked with the yt-dlp signing key built into the app, see
+`docs/threat-model.md`, T14). Nothing about the user or their files is sent, and app updates are never downloaded or
 installed by the app: it only opens the release page in the browser.
 Everything else runs locally.

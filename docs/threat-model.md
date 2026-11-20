@@ -301,10 +301,11 @@ knowing, or leave the YouTube download broken.
 
 *Mitigations (`crates/podcast-core/src/ytdlp_update.rs`,
 `update_youtube_tool` in `src-tauri/src/commands.rs`):*
-* Nothing is checked at start. The button "Zaktualizuj narzędzie" appears
-  only next to a failed YouTube download (errors `YouTube`,
-  `YouTubeBlocked`), and the update runs only after the user confirms a
-  dialog that says what will be downloaded from where.
+* Nothing is checked at start. The update is started only by the user:
+  the button "Zaktualizuj narzędzie" next to a failed YouTube download
+  (errors `YouTube`, `YouTubeBlocked`) or "Sprawdź i zaktualizuj" in the
+  settings ("O programie"), and runs only after the user confirms a dialog
+  that says what will be downloaded from where.
 * The release tag from `api.github.com/repos/yt-dlp/yt-dlp/releases/latest`
   must be a yt-dlp version (`NNNN.N.N[.N]`, digits only), so the download
   URLs always point to `https://github.com/yt-dlp/yt-dlp/releases/download/`
