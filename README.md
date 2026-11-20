@@ -1,4 +1,4 @@
-# SCh Tomy Audio
+# <img src="src-tauri/icons/128x128@2x.png" width="40" height="40" alt="" align="top"> SCh Tomy Audio
 
 > **Po polsku:** aplikację pobierzesz z zakładki
 > [Releases](https://github.com/swider8814/sch-tomy-audio/releases), a
