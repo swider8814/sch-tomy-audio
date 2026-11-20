@@ -49,6 +49,7 @@ export function openSettings(tab = "basic") {
   $("#update-status").textContent = "";
   $("#bundle-status").textContent = "";
   $("#speaker-status").textContent = "";
+  $("#notify-status").textContent = "";
   $("#speaker-text").value = "";
   showTab(tab);
   dlg().showModal();
@@ -376,6 +377,19 @@ function setup() {
     }
   });
   $("#bundle-import").addEventListener("click", importBundle);
+  $("#notify-test").addEventListener("click", async () => {
+    const status = $("#notify-status");
+    try {
+      await invoke("plugin:notification|notify", {
+        options: { title: "SCh Tomy Audio", body: "Tak wygląda powiadomienie o końcu obróbki." },
+      });
+      status.textContent = /Mac/.test(navigator.platform)
+        ? "Wysłano. Nie widzisz go? Otwórz Ustawienia systemowe, Powiadomienia, SCh Tomy Audio i włącz powiadomienia."
+        : "Wysłano. Nie widzisz go? Otwórz Ustawienia Windows, System, Powiadomienia i włącz je dla SCh Tomy Audio.";
+    } catch (e) {
+      status.textContent = `Nie udało się pokazać powiadomienia. ${errorText(e)}`;
+    }
+  });
   // The theme is previewed at once; closing without saving goes back to the saved one.
   for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));
   dlg().addEventListener("close", () => applyTheme(app.settings?.theme));
