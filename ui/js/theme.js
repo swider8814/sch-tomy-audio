@@ -7,6 +7,10 @@ import { themeOf } from "./logic.js";
 
 export { themeOf };
 
+// Windows' Segoe UI sits a little low in its line box; style.css moves
+// single-line text up there (see ".os-windows").
+if (/Windows/.test(navigator.userAgent)) document.documentElement.classList.add("os-windows");
+
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 let current = "system";
 

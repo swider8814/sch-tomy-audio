@@ -477,3 +477,24 @@ button.scroll-hint { margin-right: auto; font-size: 0.9rem; text-decoration: non
 /* technical details under a message (settings) */
 details.tech { margin-top: 0.3rem; }
 details.tech pre { white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; margin: 0.3rem 0 0; color: var(--muted); }
+
+/* Windows: Segoe UI has a tall ascent (2210) and short descent (514) for its
+   cap height (1434, units of 2048), so capitals sit about 0.064em below the
+   middle of the line box: text looked low in buttons, chips and fields.
+   Move single-line text up by that much there (macOS' SF is balanced). */
+.os-windows { --tx: 0.064em; }
+.os-windows button { padding-top: calc(0.4rem - var(--tx)); padding-bottom: calc(0.4rem + var(--tx)); }
+.os-windows button.small { padding-top: calc(0.15rem - var(--tx)); padding-bottom: calc(0.15rem + var(--tx)); }
+.os-windows button.link { padding: 0; }
+.os-windows .topbar #theme-toggle { padding: 0.4rem; }
+.os-windows .chip { padding-top: calc(0.15rem - var(--tx)); padding-bottom: calc(0.15rem + var(--tx)); }
+.os-windows .tabs [role="tab"] { padding-top: calc(0.45rem - var(--tx)); padding-bottom: calc(0.45rem + var(--tx)); }
+.os-windows input[type="text"], .os-windows input[type="number"], .os-windows select {
+  padding-top: calc(0.35rem - var(--tx));
+  padding-bottom: calc(0.35rem + var(--tx));
+}
+.os-windows .suffix-row input { padding-top: calc(0.2rem - var(--tx)); padding-bottom: calc(0.2rem + var(--tx)); }
+.os-windows .badge { padding-top: max(0px, calc(0.05rem - var(--tx))); padding-bottom: calc(0.05rem + var(--tx)); }
+.os-windows kbd { padding-top: max(0px, calc(0.05rem - var(--tx))); padding-bottom: calc(0.05rem + var(--tx)); }
+.os-windows .info-dot { padding-bottom: calc(2 * var(--tx)); }
+.os-windows .suggest-menu li { padding-top: calc(0.3rem - var(--tx)); padding-bottom: calc(0.3rem + var(--tx)); }
