@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Generates the app icon source (1024x1024 PNG) with ffmpeg, then all
-# platform icons with the Tauri CLI. Run from the repository root.
+# Generates all platform icons from src-tauri/icons/source.svg with the
+# Tauri CLI. Run from the repository root after `npm ci`.
+# Only the files listed in tauri.conf.json (plus icon.png) are kept; the
+# CLI also writes Android, iOS and Windows Store icons the app does not use.
+# The SVG is also copied to ui/app-icon.svg (the icon in the top bar).
 set -euo pipefail
-out=src-tauri/icons/source.png
-bars=""
-heights=(180 320 520 700 460 820 600 380 640 300 200)
-x=170
-for h in "${heights[@]}"; do
-  y=$(( (1024 - h) / 2 ))
-  bars+="drawbox=x=${x}:y=${y}:w=48:h=${h}:color=white@1:t=fill,"
-  x=$(( x + 64 ))
+src=src-tauri/icons/source.svg
+dst=src-tauri/icons
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+npx tauri icon "$src" -o "$tmp"
+for f in 32x32.png 128x128.png 128x128@2x.png icon.icns icon.ico icon.png; do
+  cp "$tmp/$f" "$dst/$f"
 done
-ffmpeg -hide_banner -loglevel error -y -f lavfi -i "color=c=0x1f4e79:s=1024x1024,format=rgba" \
-  -vf "${bars}geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(max(abs(X-511.5)-312,0),max(abs(Y-511.5)-312,0)),200),255,0)'" \
-  -frames:v 1 "$out"
-npx tauri icon "$out" -o src-tauri/icons
+cp "$src" ui/app-icon.svg

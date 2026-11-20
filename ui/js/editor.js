@@ -154,21 +154,23 @@ function draw(name) {
   const W = canvas.width;
   const H = canvas.height;
   const g = canvas.getContext("2d");
-  g.fillStyle = "#0f2236";
+  const css = getComputedStyle(canvas);
+  const color = (name) => css.getPropertyValue(`--wave${name}`).trim();
+  g.fillStyle = color("-bg");
   g.fillRect(0, 0, W, H);
   const x = (t) => ((t - p.viewStart) / p.viewLen) * W;
 
   // teaser region
   const t = ed.job?.teaser;
   if (t && name === "head") {
-    g.fillStyle = "rgba(60, 180, 100, 0.18)";
+    g.fillStyle = color("-teaser");
     g.fillRect(x(t.offset), 0, x(t.end) - x(t.offset), H);
   }
 
   // waveform
   if (p.buffer) {
     if (!p.peaks) p.peaks = computePeaks(p.buffer, W, p.viewStart - p.offset, p.viewLen);
-    g.fillStyle = "#7fb3e6";
+    g.fillStyle = color("");
     const mid = H / 2;
     for (let c = 0; c < W; c++) {
       const lo = p.peaks[c * 2];
@@ -176,13 +178,13 @@ function draw(name) {
       g.fillRect(c, mid - hi * mid * 0.95, 1, Math.max(1, (hi - lo) * mid * 0.95));
     }
   } else {
-    g.fillStyle = "#9fb0c2";
+    g.fillStyle = color("-text");
     g.font = `${13 * dpr}px system-ui, sans-serif`;
     g.fillText(p.error ?? "Wczytywanie podglądu...", 12 * dpr, H / 2);
   }
 
   // time grid: tick and label spacing follow the zoom level
-  g.fillStyle = "rgba(255,255,255,0.55)";
+  g.fillStyle = color("-grid");
   g.font = `${10 * dpr}px system-ui, sans-serif`;
   const { tick, label } = gridSteps(p.viewLen, W / dpr);
   const viewEnd = p.viewStart + p.viewLen;
@@ -197,7 +199,7 @@ function draw(name) {
     }
   }
   if (p.viewLen < p.length - 0.05) {
-    g.fillStyle = "rgba(255,255,255,0.75)";
+    g.fillStyle = color("-zoom");
     g.fillText(`Powiększenie ${Math.round(p.length / p.viewLen)}x`, W - 110 * dpr, 13 * dpr);
   }
 
@@ -220,11 +222,11 @@ function draw(name) {
     }
   };
   const vad = ed.job?.vad;
-  if (vad && name === "head") vline(vad.start, "#f0b429", "VAD", true);
-  vline(ed.start, "#3ddc84", "start");
-  vline(ed.end, "#ff6b6b", "koniec");
-  vline(p.cursor, "#ffffff", null, true);
-  if (ed.playing?.part === name) vline(playPosition(), "#ffe066", null);
+  if (vad && name === "head") vline(vad.start, color("-vad"), "VAD", true);
+  vline(ed.start, color("-start"), "start");
+  vline(ed.end, color("-end"), "koniec");
+  vline(p.cursor, color("-cursor"), null, true);
+  if (ed.playing?.part === name) vline(playPosition(), color("-play"), null);
 }
 
 // ------------------------------------------------------------------- zoom
