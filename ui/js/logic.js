@@ -178,7 +178,8 @@ export function normalDate(text) {
   else if ((m = /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/.exec(s))) [, d, mo, y] = m;
   else return null;
   const day = new Date(Date.UTC(+y, +mo - 1, +d));
-  if (+y < 1900 || day.getUTCMonth() !== +mo - 1 || day.getUTCDate() !== +d) return null;
+  // same year range as the backend's date parser (naming::date_from_name)
+  if (+y < 1900 || +y > 2099 || day.getUTCMonth() !== +mo - 1 || day.getUTCDate() !== +d) return null;
   return `${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")}`;
 }
 

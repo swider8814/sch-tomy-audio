@@ -156,7 +156,7 @@ test("suffix and speaker suggestions", () => {
     assert.equal(normalDate(s), "2026.11.01", s);
   }
   assert.equal(normalDate(""), "");
-  for (const s of ["2026.13.01", "31.11.2026", "2026.02.30", "wczoraj", "2026.11", "26.11.01"]) {
+  for (const s of ["2026.13.01", "31.11.2026", "2026.02.30", "wczoraj", "2026.11", "26.11.01", "2100.01.01", "9999.01.01", "1899.12.31"]) {
     assert.equal(normalDate(s), null, s);
   }
   assert.equal(normalDate("29.02.2028"), "2028.02.29");

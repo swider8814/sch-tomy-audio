@@ -200,8 +200,10 @@ function createRow(id) {
       return;
     }
     date.value = day;
+    const saving = invoke("set_title", { id, sermon: sermon.value, suffix: joinSuffix(speaker.value, day) });
+    pendingSaves.set(id, saving.catch(() => {}));
     try {
-      await invoke("set_title", { id, sermon: sermon.value, suffix: joinSuffix(speaker.value, day) });
+      await saving;
     } catch (e) {
       toast(errorText(e));
     }
@@ -725,10 +727,18 @@ async function confirmNoTitle(n) {
   );
 }
 
+/** Title saves still on their way to the backend, by job id. */
+const pendingSaves = new Map();
+
 /** "Przetwórz" next to one file. */
 async function startOne(id) {
+  // the title may have been typed a moment ago: decide on what is in the field
+  // and let its save reach the backend first
+  const sermon = rows.get(id)?.sermon.value;
+  await pendingSaves.get(id);
   const job = app.jobs.get(id);
-  if (!job || !(await confirmNoTitle(missingSermon(job) ? 1 : 0))) return;
+  const missing = sermon != null ? !sermon.trim() : job && missingSermon(job);
+  if (!job || !(await confirmNoTitle(missing ? 1 : 0))) return;
   try {
     if (await invoke("start_job", { id })) askNotifyPermission();
   } catch (e) {
