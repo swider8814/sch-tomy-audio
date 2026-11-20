@@ -9,7 +9,8 @@
   --accent: #16130f; /* primary buttons, active chip: ink, gold on hover (as on the site) */
   --accent-hover: #cdaa68;
   --on-accent-hover: #16130f;
-  --accent-2: #486ca0; /* links, focus ring, button hover border */
+  --accent-2: #486ca0; /* links */
+  --outline: #9a7a38; /* button hover border, focus ring: darker gold, 3:1 on paper and white */
   --progress: #cdaa68;
   --ok: #1e7b3c;
   --ok-bg: #e5f2e8;
@@ -74,7 +75,7 @@ button {
   padding: 0.4rem 0.8rem;
   cursor: pointer;
 }
-button:hover:not(:disabled) { border-color: var(--accent-2); }
+button:hover:not(:disabled) { border-color: var(--outline); }
 button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent-hover); }
@@ -88,7 +89,9 @@ input[type="text"], input[type="number"], select {
   padding: 0.35rem 0.5rem;
   background: var(--field);
 }
-input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--outline); outline-offset: 1px; }
+/* checkboxes, radio buttons and range sliders in the palette, not the system blue */
+:root { accent-color: var(--accent); }
 
 .topbar {
   display: flex;
@@ -390,6 +393,7 @@ kbd {
     --accent-hover: #dcc08a;
     --on-accent-hover: #16130f;
     --accent-2: #8fb0dd;
+    --outline: #cdaa68;
     --progress: #cdaa68;
     --ok: #7fd39a;
     --ok-bg: #18301f;
@@ -428,6 +432,7 @@ kbd {
   --accent-hover: #dcc08a;
   --on-accent-hover: #16130f;
   --accent-2: #8fb0dd;
+  --outline: #cdaa68;
   --progress: #cdaa68;
   --ok: #7fd39a;
   --ok-bg: #18301f;
