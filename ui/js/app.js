@@ -401,10 +401,28 @@ function updateRow(job) {
   }
 
   // actions
+  const startable = (job.status === "waiting" || job.status === "cancelled") && !!job.path;
   r.actions.replaceChildren(
-    busy(job)
-      ? h("button", { type: "button", class: "small danger", onclick: () => invoke("cancel_job", { id: job.id }) }, "Anuluj")
-      : h("button", { type: "button", class: "small", onclick: () => invoke("remove_job", { id: job.id }), title: "Usuń z listy (plik zostaje na dysku)" }, "Usuń"),
+    h(
+      "div",
+      { class: "row-actions" },
+      startable
+        ? h(
+            "button",
+            {
+              type: "button",
+              class: "small",
+              disabled: !!app.toolsError,
+              onclick: () => startOne(job.id),
+              title: "Przetwórz tylko ten plik",
+            },
+            "Przetwórz",
+          )
+        : null,
+      busy(job)
+        ? h("button", { type: "button", class: "small danger", onclick: () => invoke("cancel_job", { id: job.id }) }, "Anuluj")
+        : h("button", { type: "button", class: "small", onclick: () => invoke("remove_job", { id: job.id }), title: "Usuń z listy (plik zostaje na dysku)" }, "Usuń"),
+    ),
   );
 }
 
@@ -698,6 +716,26 @@ async function chooseFiles() {
   await addPaths(paths);
 }
 
+/** Asks before processing files without a sermon title; true to go on. */
+async function confirmNoTitle(n) {
+  if (!n) return true;
+  return tauriDialog().ask(
+    `${n} ${plikow(n)} nie ${maMaja(n)} tytułu kazania. W tagach MP3 zostanie wtedy tylko mówca i data. Przetworzyć mimo to?`,
+    { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
+  );
+}
+
+/** "Przetwórz" next to one file. */
+async function startOne(id) {
+  const job = app.jobs.get(id);
+  if (!job || !(await confirmNoTitle(missingSermon(job) ? 1 : 0))) return;
+  try {
+    if (await invoke("start_job", { id })) askNotifyPermission();
+  } catch (e) {
+    toast(errorText(e));
+  }
+}
+
 async function retry(id) {
   try {
     await invoke("retry_job", { id });
@@ -777,13 +815,7 @@ function setupButtons() {
   });
   $("#btn-start").addEventListener("click", async () => {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;
-    if (noTitle) {
-      const ok = await tauriDialog().ask(
-        `${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania. W tagach MP3 zostanie wtedy tylko mówca i data. Przetworzyć mimo to?`,
-        { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
-      );
-      if (!ok) return;
-    }
+    if (!(await confirmNoTitle(noTitle))) return;
     const n = await invoke("start_all");
     if (n) {
       toast(`Rozpoczęto obróbkę: ${n} ${plikow(n)}.`);

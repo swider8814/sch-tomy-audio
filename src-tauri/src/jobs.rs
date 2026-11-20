@@ -294,6 +294,12 @@ pub fn year_for(suffix: &str, path: &std::path::Path) -> Option<i32> {
         })
 }
 
+/// Can be queued by "Przetwórz" / "Przetwórz wszystkie": waiting or
+/// cancelled, and the YouTube download (if any) has finished.
+pub fn startable(j: &Job) -> bool {
+    matches!(j.view.status, Status::Waiting | Status::Cancelled) && !j.needs_download()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,10 +366,30 @@ mod tests {
     }
 
     #[test]
+    fn only_waiting_or_cancelled_files_can_be_started() {
+        let mut j = job();
+        for (status, ok) in [
+            (Status::Waiting, true),
+            (Status::Cancelled, true),
+            (Status::Analyzing, false),
+            (Status::Queued, false),
+            (Status::Processing, false),
+            (Status::Done, false),
+            (Status::Error, false),
+        ] {
+            j.view.status = status;
+            assert_eq!(startable(&j), ok, "{status:?}");
+        }
+    }
+
+    #[test]
     fn youtube_job_lifecycle() {
         let mut j = Job::new_youtube(3, "dQw4w9WgXcQ");
         assert_eq!(j.view.status, Status::Downloading);
         assert!(j.needs_download());
+        j.view.status = Status::Waiting;
+        assert!(!startable(&j), "not downloaded yet");
+        j.view.status = Status::Downloading;
         assert!(!j.needs_analysis);
         let info = podcast_core::youtube::VideoInfo {
             id: "dQw4w9WgXcQ".into(),

@@ -135,6 +135,7 @@ td.c-start { width: 24%; }
 td.c-status { width: 16%; }
 td.c-result { width: 22%; }
 td.c-actions { width: 8%; text-align: right; white-space: nowrap; }
+.row-actions { display: inline-flex; flex-direction: column; align-items: stretch; gap: 0.3rem; }
 .file-name { font-size: 0.82rem; color: var(--muted); word-break: break-all; margin-bottom: 0.25rem; }
 .title-input { width: 100%; }
 .title-input.missing { border-color: var(--warn); background: var(--warn-bg); }
