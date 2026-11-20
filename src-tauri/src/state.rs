@@ -97,9 +97,10 @@ impl AppState {
         }
     }
 
-    /// Version of the yt-dlp in use, when known (not for `SCHTOMY_YTDLP`).
+    /// Version of the yt-dlp in use, when known (not for `SCHTOMY_YTDLP`, and
+    /// none when no yt-dlp could be found, so an update always installs one).
     pub fn ytdlp_version(&self) -> Option<ytdlp_update::Version> {
-        if self.ytdlp_override {
+        if self.ytdlp_override || self.yt_tools().is_err() {
             return None;
         }
         let bundled = ytdlp_update::bundled_version();
