@@ -124,11 +124,15 @@ docs/threat-model.md
 * **Year tag:** from a date in the file name (`dd.mm.yyyy` or `yyyy-mm-dd`),
   else the current year.
 * **Title (v0.1.2):** two fields, "sermon title" and "speaker - date",
-  joined as "Tytuł - Kaznodzieja - RRRR.MM.DD" like the existing Spotify
+  joined as "Tytuł - Mówca - RRRR.MM.DD" like the existing Spotify
   episodes. Both are read from file names such as "06.09.2026 - Speaker -
   Title_audio.mp3" or "TOMY Piotrków 2026.10.11 - Speaker.mp4" (title then
   empty and highlighted); other names fall back to the file name as title.
-* **Output name (v0.1.2):** `RRRR-MM-DD-tytul-kaznodzieja-podcast.mp3`
+  Since v0.1.6 the UI shows speaker and date as two inputs (speaker with
+  the remembered names as a datalist, date normalised to RRRR.MM.DD,
+  either highlighted when empty); they are still stored and sent to
+  `set_title` as one "speaker - date" suffix.
+* **Output name (v0.1.2):** `RRRR-MM-DD-tytul-mowca-podcast.mp3`
   (ASCII slug, date first for sorting), falling back to the slug of the
   original name. The spec asked for `<original>-podcast.mp3`; changed at the
   user's request.
@@ -186,8 +190,9 @@ docs/threat-model.md
   extrapolated from its elapsed time and finished share (`logic.js`
   `runFraction`, `etaSeconds`), shown after 15 s. At the end a system
   notification (tauri-plugin-notification, setting `notify_done`) is sent
-  only when the window is not focused; permission is asked when processing
-  starts.
+  (since v0.1.6 also when the window is focused; a test button in the
+  settings). On desktop the plugin's permission calls are no-ops: macOS
+  asks on the first notification.
 * **Speaker suggestions (v0.1.4):** the speaker of every finished episode
   (`speakers::speaker_of` on the "speaker - date" field) is remembered in
   `speakers.json` in the data folder (max 300, most recent first). The
@@ -247,5 +252,12 @@ programie (version, update check). A validation error switches to its tab.
 10. Stage 2 (v0.1.2): YouTube link via bundled yt-dlp 2026.10.26 + Deno 2.9.7
     (yt-dlp needs a JavaScript runtime for YouTube; Deno is its default).
     Audio only (`bestaudio[ext=m4a]/bestaudio`, no conversion), saved to
-    `Downloads/SCh Tomy YouTube`, one download at a time; title and date
-    prefilled from the video, the speaker is typed by the user.
+    `Downloads/SCh Tomy YouTube`, one download at a time; title prefilled
+    from the video. Since v0.1.6 the description is fetched too:
+    `speakers::find_in_text` takes the first speaker mentioned in it:
+    a remembered name (whole words, case and Polish letters ignored) or a
+    capitalised name after a cue word ("wprowadził nas Jerzy Sikora",
+    "Mówca: ...", "wygłosił pastor ..."), in the remembered spelling when
+    known; the date comes from a "Data: 01.11.2026" line (a real calendar
+    date), else the upload date. Similar names are all remembered (two
+    people can differ by one letter); the UI marks such pairs instead.

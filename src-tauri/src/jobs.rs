@@ -183,18 +183,24 @@ impl Job {
     }
 
     /// The YouTube download finished: switch to the downloaded file and
-    /// prefill the title from the video (title, upload date).
-    pub fn downloaded(&mut self, path: PathBuf, info: &podcast_core::youtube::VideoInfo) {
+    /// prefill the title from the video (title; speaker and date from the
+    /// description, else the upload date).
+    pub fn downloaded(
+        &mut self,
+        path: PathBuf,
+        info: &podcast_core::youtube::VideoInfo,
+        known_speakers: &[String],
+    ) {
         self.view.file_name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         self.view.path = path;
         self.view.sermon_title = info.title.trim().chars().take(200).collect();
-        self.view.title_suffix = info.dotted_date().unwrap_or_default();
+        self.view.title_suffix = info.title_suffix(known_speakers);
         self.view.title =
             podcast_core::naming::join_title(&self.view.sermon_title, &self.view.title_suffix);
-        self.view.year = info.date().map(|(y, _, _)| y);
+        self.view.year = info.sermon_date().map(|(y, _, _)| y);
         self.view.status = Status::Analyzing;
         self.view.progress = 0.0;
         self.view.error = None;
@@ -288,6 +294,12 @@ pub fn year_for(suffix: &str, path: &std::path::Path) -> Option<i32> {
         })
 }
 
+/// Can be queued by "Przetwórz" / "Przetwórz wszystkie": waiting or
+/// cancelled, and the YouTube download (if any) has finished.
+pub fn startable(j: &Job) -> bool {
+    matches!(j.view.status, Status::Waiting | Status::Cancelled) && !j.needs_download()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -354,10 +366,30 @@ mod tests {
     }
 
     #[test]
+    fn only_waiting_or_cancelled_files_can_be_started() {
+        let mut j = job();
+        for (status, ok) in [
+            (Status::Waiting, true),
+            (Status::Cancelled, true),
+            (Status::Analyzing, false),
+            (Status::Queued, false),
+            (Status::Processing, false),
+            (Status::Done, false),
+            (Status::Error, false),
+        ] {
+            j.view.status = status;
+            assert_eq!(startable(&j), ok, "{status:?}");
+        }
+    }
+
+    #[test]
     fn youtube_job_lifecycle() {
         let mut j = Job::new_youtube(3, "dQw4w9WgXcQ");
         assert_eq!(j.view.status, Status::Downloading);
         assert!(j.needs_download());
+        j.view.status = Status::Waiting;
+        assert!(!startable(&j), "not downloaded yet");
+        j.view.status = Status::Downloading;
         assert!(!j.needs_analysis);
         let info = podcast_core::youtube::VideoInfo {
             id: "dQw4w9WgXcQ".into(),
@@ -366,17 +398,22 @@ mod tests {
             uploader: None,
             channel: None,
             duration: None,
+            description: Some("Kazanie wygłosił Adam Szumorek".into()),
         };
         j.downloaded(
             PathBuf::from("/d/2026-10-11-co-mi-wolno-yt-dQw4w9WgXcQ.m4a"),
             &info,
+            &["Adam Szumorek".to_string()],
         );
         assert!(!j.needs_download());
         assert!(j.needs_analysis);
         assert_eq!(j.view.status, Status::Analyzing);
-        assert_eq!(j.view.title, "Co mi wolno? - 2026.10.11");
+        assert_eq!(j.view.title, "Co mi wolno? - Adam Szumorek - 2026.10.11");
         assert_eq!(j.view.year, Some(2026));
-        assert_eq!(j.view.output_name, "2026-10-11-co-mi-wolno-podcast.mp3");
+        assert_eq!(
+            j.view.output_name,
+            "2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3"
+        );
         assert_eq!(
             serde_json::to_value(&j.view).unwrap()["sourceUrl"],
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ"

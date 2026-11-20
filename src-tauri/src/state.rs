@@ -637,13 +637,14 @@ fn download_worker(app: AppHandle, state: Arc<AppState>) {
             Ok((path, info))
         })();
         let mut g = state.lock();
+        let known_speakers = g.speakers.clone();
         if let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == task.id) {
             j.download_running = false;
             match result {
                 Ok((path, info)) => {
                     log.push_str(&format!("Saved: {}\n", path.display()));
                     j.log = log;
-                    j.downloaded(path, &info);
+                    j.downloaded(path, &info, &known_speakers);
                 }
                 Err(e) => {
                     j.log = format!("{log}\nERROR: {e}\n");

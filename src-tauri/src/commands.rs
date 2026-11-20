@@ -673,6 +673,8 @@ pub struct SpeakersAdded {
     speakers: Vec<String>,
     added: usize,
     found: usize,
+    /// Some names were not added because the list is full.
+    full: bool,
 }
 
 /// Adds speaker names pasted or loaded from a file (one per line).
@@ -681,16 +683,18 @@ pub fn add_speakers(app: AppHandle, state: St<'_>, text: String) -> SpeakersAdde
     let names = podcast_core::speakers::parse_list(&text);
     let mut g = state.lock();
     let added = podcast_core::speakers::add_all(&mut g.speakers, &names);
+    let missing = podcast_core::speakers::missing(&g.speakers, &names);
     let _ = podcast_core::speakers::save(&state.speakers_path, &g.speakers);
     let _ = app.emit("speakers", &g.speakers);
     SpeakersAdded {
         speakers: g.speakers.clone(),
         added,
         found: names.len(),
+        full: !missing.is_empty(),
     }
 }
 
-/// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
+/// Removes a remembered speaker name (settings, "Zapamiętani mówcy").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {
     let mut g = state.lock();
@@ -821,7 +825,7 @@ pub fn start_all(app: AppHandle, state: St<'_>) -> usize {
     let mut g = state.lock();
     let mut n = 0;
     for j in g.jobs.iter_mut() {
-        if matches!(j.view.status, Status::Waiting | Status::Cancelled) && !j.needs_download() {
+        if crate::jobs::startable(j) {
             j.view.status = Status::Queued;
             j.view.progress = 0.0;
             n += 1;
@@ -831,6 +835,25 @@ pub fn start_all(app: AppHandle, state: St<'_>) -> usize {
     drop(g);
     state.wake.notify_all();
     n
+}
+
+/// Queues one waiting or cancelled file ("Przetwórz" next to it). Returns
+/// false when the file cannot be started (busy, done, not downloaded yet).
+#[tauri::command]
+pub fn start_job(app: AppHandle, state: St<'_>, id: u64) -> bool {
+    let mut g = state.lock();
+    let Some(j) = g.jobs.iter_mut().find(|j| j.view.id == id) else {
+        return false;
+    };
+    let ok = crate::jobs::startable(j);
+    if ok {
+        j.view.status = Status::Queued;
+        j.view.progress = 0.0;
+        emit_job(&app, &j.view);
+    }
+    drop(g);
+    state.wake.notify_all();
+    ok
 }
 
 #[tauri::command]

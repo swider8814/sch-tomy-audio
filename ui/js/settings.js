@@ -5,6 +5,7 @@ import { app, setSettings, setPatterns, setUpdate, MEDIA_EXTENSIONS } from "./ap
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, themeOf } from "./theme.js";
 import { formatTime } from "./format.js";
+import { similarSpeaker } from "./logic.js";
 
 const dlg = () => $("#settings");
 const form = () => $("#settings-form");
@@ -48,6 +49,8 @@ export function openSettings(tab = "basic") {
   $("#update-status").textContent = "";
   $("#bundle-status").textContent = "";
   $("#speaker-status").textContent = "";
+  $("#notify-status").textContent = "";
+  $("#speaker-text").value = "";
   showTab(tab);
   dlg().showModal();
 }
@@ -191,6 +194,8 @@ function patternButton(label, cls, onclick) {
   return h("button", { type: "button", class: cls, onclick }, label);
 }
 
+const FULL_LIST = "Lista mówców jest pełna (300 nazwisk). Usuń z niej nieużywane nazwiska i dodaj pozostałe jeszcze raz.";
+
 async function addSpeakers() {
   const status = $("#speaker-status");
   const text = $("#speaker-text").value;
@@ -202,6 +207,10 @@ async function addSpeakers() {
     const r = await invoke("add_speakers", { text });
     app.speakers = r.speakers;
     renderSpeakers();
+    if (r.full) {
+      status.textContent = `Dodano: ${r.added}. ${FULL_LIST}`;
+      return;
+    }
     status.textContent = r.added
       ? `Dodano: ${r.added}.${r.found > r.added ? ` Pominięto (już są na liście): ${r.found - r.added}.` : ""}`
       : "Wszystkie te nazwiska są już na liście.";
@@ -236,7 +245,7 @@ async function importBundle() {
   });
   if (!path) return;
   const ok = await tauriDialog().ask(
-    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i kaznodzieje zostaną dodane do obecnych. Foldery zostaną bez zmian.",
+    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i mówców aplikacja doda do obecnych. Foldery zostaną bez zmian.",
     { title: "Wczytywanie ustawień", kind: "warning", okLabel: "Wczytaj", cancelLabel: "Anuluj" },
   );
   if (!ok) return;
@@ -255,7 +264,7 @@ async function importBundle() {
     if (files.length) parts.push(`Pliki: ${files.join(", ")}.`);
     parts.push(`Nowe zajawki: ${s.patternsAdded}.`);
     if (s.patternsSkipped) parts.push(`Pominięte (już są): ${s.patternsSkipped}.`);
-    parts.push(`Nowi kaznodzieje: ${s.speakersAdded}.`);
+    parts.push(`Nowi mówcy: ${s.speakersAdded}.`);
     status.textContent = parts.join(" ");
   } catch (e) {
     status.textContent = errorText(e);
@@ -266,7 +275,7 @@ function renderSpeakers() {
   const ul = $("#speaker-settings-list");
   ul.replaceChildren();
   if (!app.speakers.length) {
-    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
+    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Mówcy pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
     return;
   }
   for (const name of app.speakers) {
@@ -278,7 +287,19 @@ function renderSpeakers() {
         toast(errorText(e));
       }
     };
-    ul.append(h("li", {}, h("span", { class: "grow" }, name), patternButton("Usuń", "small danger", remove)));
+    // two spellings of one person: one of them is probably a typo
+    const twin = similarSpeaker(
+      name,
+      app.speakers.filter((n) => n !== name),
+    );
+    ul.append(
+      h(
+        "li",
+        {},
+        h("span", { class: "grow" }, name, twin ? h("span", { class: "warn-text twin" }, ` Podobne do: ${twin}. Jeśli to literówka, usuń ją.`) : null),
+        patternButton("Usuń", "small danger", remove),
+      ),
+    );
   }
 }
 
@@ -349,7 +370,7 @@ function setup() {
   $("#speaker-add").addEventListener("click", addSpeakers);
   $("#speaker-file").addEventListener("click", async () => {
     const [p] = await pickFiles({
-      title: "Wczytaj listę kaznodziei",
+      title: "Wczytaj listę mówców",
       filters: [{ name: "Plik tekstowy", extensions: ["txt", "csv"] }],
     });
     if (!p) return;
@@ -362,6 +383,19 @@ function setup() {
     }
   });
   $("#bundle-import").addEventListener("click", importBundle);
+  $("#notify-test").addEventListener("click", async () => {
+    const status = $("#notify-status");
+    try {
+      await invoke("plugin:notification|notify", {
+        options: { title: "SCh Tomy Audio", body: "Tak wygląda powiadomienie o końcu obróbki." },
+      });
+      status.textContent = /Mac/.test(navigator.platform)
+        ? "Wysłano. Nie widzisz go? Otwórz Ustawienia systemowe, Powiadomienia, SCh Tomy Audio i włącz powiadomienia."
+        : "Wysłano. Nie widzisz go? Otwórz Ustawienia Windows, System, Powiadomienia i włącz je dla SCh Tomy Audio.";
+    } catch (e) {
+      status.textContent = `Nie udało się pokazać powiadomienia. ${errorText(e)}`;
+    }
+  });
   // The theme is previewed at once; closing without saving goes back to the saved one.
   for (const r of form().querySelectorAll("input[name=theme]")) r.addEventListener("change", () => applyTheme(r.value));
   dlg().addEventListener("close", () => applyTheme(app.settings?.theme));
@@ -410,8 +444,23 @@ function setup() {
     try {
       const saved = await invoke("save_settings", { settings: s });
       setSettings(saved);
+      // names pasted or loaded from a file but not added yet: "Zapisz" adds them too
+      let added = "";
+      if ($("#speaker-text").value.trim()) {
+        const r = await invoke("add_speakers", { text: $("#speaker-text").value });
+        app.speakers = r.speakers;
+        if (r.full) {
+          // settings are saved; the names that did not fit stay in the box
+          renderSpeakers();
+          showTab("advanced");
+          $("#speaker-status").textContent = `Ustawienia zapisane. Dodano mówców: ${r.added}. ${FULL_LIST}`;
+          return;
+        }
+        $("#speaker-text").value = "";
+        added = r.added ? ` Dodano mówców: ${r.added}.` : "";
+      }
       dlg().close();
-      toast("Zapisano ustawienia.");
+      toast(`Zapisano ustawienia.${added}`);
     } catch (e) {
       $("#settings-error").textContent = errorText(e);
     }

@@ -1,4 +1,4 @@
-//! Remembered speaker (preacher) names, suggested in the "Kaznodzieja i
+//! Remembered speaker (preacher) names, suggested in the "Mówca i
 //! data" field so the same person is always spelled the same way.
 //!
 //! Names are taken from finished episodes. The list is kept in a small JSON
@@ -12,7 +12,7 @@ pub const MAX_SPEAKERS: usize = 300;
 /// Longest accepted name, in characters.
 pub const MAX_NAME_CHARS: usize = 100;
 
-/// Speaker part of a title suffix "Kaznodzieja - RRRR.MM.DD": the text before
+/// Speaker part of a title suffix "Mówca - RRRR.MM.DD": the text before
 /// a trailing date (separated by " - " or a space). `None` when nothing is
 /// left or the text has no letters.
 pub fn speaker_of(suffix: &str) -> Option<String> {
@@ -57,7 +57,8 @@ fn key(name: &str) -> String {
 }
 
 /// Puts `name` first (once, case-insensitively; the new spelling wins) and
-/// keeps at most [`MAX_SPEAKERS`] names.
+/// keeps at most [`MAX_SPEAKERS`] names. Similar names are kept (two people
+/// can differ by one letter); the UI marks such pairs so a typo can be removed.
 pub fn remember(list: &mut Vec<String>, name: &str) {
     let k = key(name);
     if k.is_empty() {
@@ -114,6 +115,186 @@ pub fn add_all(list: &mut Vec<String>, names: &[String]) -> usize {
         }
     }
     added
+}
+
+/// Names from `names` that are not on the list (e.g. because it is full).
+pub fn missing(list: &[String], names: &[String]) -> Vec<String> {
+    names
+        .iter()
+        .filter(|n| !list.iter().any(|o| key(o) == key(n)))
+        .cloned()
+        .collect()
+}
+
+/// Lower case ASCII form for matching names in free text ("Rafał" and
+/// "rafal" match).
+fn fold(text: &str) -> String {
+    // per character: `deunicode::deunicode` would drop line breaks
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_ascii_lowercase().to_string()
+            } else {
+                deunicode::deunicode_char(c).unwrap_or(" ").to_lowercase()
+            }
+        })
+        .collect()
+}
+
+/// Finds a speaker in a text such as a YouTube description: the first one
+/// mentioned, either a known name (as whole words) or a capitalised first
+/// name and surname after a word that introduces the speaker, as in "Do nowej
+/// serii kazań wprowadził nas Jerzy Sikora", "Kazanie wygłosił pastor Jan
+/// Nowak" or "Mówca: Ewa Kowalska". A name found after such a word is given
+/// in its remembered spelling when it is a known speaker.
+pub fn find_in_text(text: &str, known: &[String]) -> Option<String> {
+    let text: String = text.chars().take(20_000).collect();
+    for line in text.lines() {
+        let found = match (known_in_line(line, known), introduced_in_line(line)) {
+            (Some(k), Some(c)) => Some(if c.0 < k.0 { c.1 } else { k.1 }),
+            (k, c) => k.or(c).map(|(_, name)| name),
+        };
+        if let Some(name) = found {
+            let folded = fold(&key(&name));
+            return Some(
+                known
+                    .iter()
+                    .find(|k| fold(&key(k)) == folded)
+                    .cloned()
+                    .unwrap_or(name),
+            );
+        }
+    }
+    None
+}
+
+/// Earliest known name in `line`: (character position, name).
+fn known_in_line(line: &str, known: &[String]) -> Option<(usize, String)> {
+    let folded = fold(line);
+    let bytes = folded.as_bytes();
+    let mut best: Option<(usize, &String)> = None;
+    for name in known {
+        let needle = fold(&key(name));
+        if needle.len() < 3 {
+            continue;
+        }
+        let mut from = 0;
+        while let Some(pos) = folded[from..].find(&needle) {
+            let at = from + pos;
+            let end = at + needle.len();
+            let before_ok = at == 0 || !bytes[at - 1].is_ascii_alphanumeric();
+            let after_ok = end >= bytes.len() || !bytes[end].is_ascii_alphanumeric();
+            if before_ok && after_ok {
+                if best.is_none_or(|(b, _)| at < b) {
+                    best = Some((at, name));
+                }
+                break;
+            }
+            from = at + 1;
+        }
+    }
+    best.map(|(at, name)| (at, name.clone()))
+}
+
+/// Words (lower case, without Polish letters) after which the speaker's name
+/// follows.
+const CUES: [&str; 32] = [
+    "nas",
+    "was",
+    "wam",
+    "sie",
+    "mowca",
+    "mowi",
+    "mowil",
+    "mowila",
+    "kaznodzieja",
+    "glosi",
+    "glosil",
+    "glosila",
+    "wyglosil",
+    "wyglosila",
+    "prowadzi",
+    "prowadzil",
+    "prowadzila",
+    "poprowadzil",
+    "poprowadzila",
+    "wprowadzil",
+    "wprowadzila",
+    "usluguje",
+    "uslugiwal",
+    "uslugiwala",
+    "przemawia",
+    "przemawial",
+    "przemawiala",
+    "naucza",
+    "nauczal",
+    "nauczala",
+    "speaker",
+    "preacher",
+];
+/// Titles between the cue and the name ("wygłosił pastor Jan Nowak").
+const TITLES: [&str; 9] = [
+    "pastor", "pastorka", "brat", "br.", "siostra", "s.", "ks.", "dr", "dr.",
+];
+
+/// Name after a cue word in `line`: (character position, name).
+fn introduced_in_line(line: &str) -> Option<(usize, String)> {
+    let words: Vec<(usize, &str)> = line
+        .split(' ')
+        .scan(0usize, |pos, w| {
+            let at = *pos;
+            *pos += w.chars().count() + 1;
+            Some((at, w))
+        })
+        .filter(|(_, w)| !w.trim().is_empty())
+        .map(|(at, w)| (at, w.trim()))
+        .collect();
+    for (i, (_, w)) in words.iter().enumerate() {
+        // "Mówca:" ends with a colon; "nas," does not introduce anyone
+        let cue = w.strip_suffix(':').unwrap_or(w);
+        if !CUES.contains(&fold(cue).as_str()) {
+            continue;
+        }
+        let mut rest = words[i + 1..]
+            .iter()
+            .copied()
+            .skip_while(|(_, w)| matches!(*w, ":" | "-"))
+            .peekable();
+        while rest
+            .peek()
+            .is_some_and(|(_, w)| TITLES.contains(&fold(w).as_str()))
+        {
+            rest.next();
+        }
+        let mut name: Vec<&str> = Vec::new();
+        let mut start = None;
+        for (at, w) in rest {
+            let bare = w.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '"', '\u{201d}']);
+            if !is_name_word(bare) || name.len() == 3 {
+                break;
+            }
+            start.get_or_insert(at);
+            name.push(bare);
+            if bare.len() != w.len() {
+                break; // punctuation ends the name
+            }
+        }
+        if name.len() >= 2 {
+            return Some((start.unwrap_or(0), name.join(" ")));
+        }
+    }
+    None
+}
+
+/// "Jerzy", "Kowalska-Nowak", "O'Brien": each part a capital letter, then
+/// lower case letters.
+fn is_name_word(w: &str) -> bool {
+    w.split(['-', '\'']).all(|part| {
+        let mut chars = part.chars();
+        chars.next().is_some_and(char::is_uppercase)
+            && chars.clone().next().is_some()
+            && chars.all(char::is_lowercase)
+    })
 }
 
 /// Removes `name` (case-insensitively).
@@ -189,11 +370,33 @@ mod tests {
         assert_eq!(l.len(), 3);
         forget(&mut l, "JAN NOWAK");
         assert_eq!(l, ["Adam Szumorek", "ewa kowalska"]);
+        let name = |i: u32| {
+            let (x, y) = (
+                char::from(b'a' + (i / 26) as u8),
+                char::from(b'a' + (i % 26) as u8),
+            );
+            format!("Osoba {x}{x}{x}{y}{y}{y}")
+        };
         for i in 0..400 {
-            remember(&mut l, &format!("Osoba {i}"));
+            remember(&mut l, &name(i));
         }
         assert_eq!(l.len(), MAX_SPEAKERS);
-        assert_eq!(l[0], "Osoba 399");
+        assert_eq!(l[0], name(399));
+    }
+
+    #[test]
+    fn names_that_did_not_fit() {
+        let mut l: Vec<String> = (0..MAX_SPEAKERS - 1)
+            .map(|i| format!("Osoba {i}"))
+            .collect();
+        let new = vec![
+            "Osoba 1".to_string(),
+            "Jan Nowak".to_string(),
+            "Ewa Lis".to_string(),
+        ];
+        assert_eq!(add_all(&mut l, &new), 1);
+        assert_eq!(missing(&l, &new), ["Ewa Lis"]);
+        assert!(missing(&l, &new[..2]).is_empty());
     }
 
     #[test]
@@ -214,6 +417,101 @@ mod tests {
         let added = add_all(&mut l, &parse_list("Ewa Kowalska\njan nowak\nAnna Lis"));
         assert_eq!(added, 2);
         assert_eq!(l, ["Jan Nowak", "Ewa Kowalska", "Anna Lis"]);
+    }
+
+    #[test]
+    fn similar_names_are_both_remembered() {
+        let mut l = vec!["Anna Nowak".to_string()];
+        remember(&mut l, "Hanna Nowak");
+        assert_eq!(l, ["Hanna Nowak", "Anna Nowak"]);
+    }
+
+    #[test]
+    fn speaker_from_a_youtube_description() {
+        let known = vec![
+            "Adam Szumorek".to_string(),
+            "Leonid Matseyka".to_string(),
+            "Rafał Piekarski".to_string(),
+        ];
+        // the church's description format, speaker not remembered yet
+        let ours = "ŁDZ // Do nowej serii kazań \"Wiara pomimo\" wprowadził nas Jerzy Sikora\n\n\
+                    Fragment: Księga Daniela 1:1-21\nData: 01.11.2026";
+        assert_eq!(find_in_text(ours, &known).as_deref(), Some("Jerzy Sikora"));
+        // later sermons of a series
+        let next = "LDZ // W kolejnym rozważaniu z serii kazań \"Wiara pomimo\" poprowadził nas Adam Jurga\n\n\
+                    Fragment: Księga Daniela 2:1-49\nData: 08.11.2026";
+        assert_eq!(find_in_text(next, &known).as_deref(), Some("Adam Jurga"));
+        // ... and with the speaker already remembered (the stored spelling wins)
+        let with_jurga = [known.clone(), vec!["Adam Jurga".to_string()]].concat();
+        assert_eq!(
+            find_in_text(&next.to_lowercase(), &with_jurga).as_deref(),
+            Some("Adam Jurga")
+        );
+        // a known name anywhere in the text, whole words, ignoring case and Polish letters
+        assert_eq!(
+            find_in_text(
+                "Kazanie z niedzieli.\nZaprasza pastor rafal piekarski oraz cały zbór.",
+                &known
+            )
+            .as_deref(),
+            Some("Rafał Piekarski")
+        );
+        // the one mentioned first wins
+        assert_eq!(
+            find_in_text("Mówi Leonid Matseyka. Modlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Leonid Matseyka")
+        );
+        // a labelled new speaker is not replaced by a known name mentioned later
+        assert_eq!(
+            find_in_text("Mówca: Jerzy Sikora\nModlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Jerzy Sikora")
+        );
+        assert_eq!(
+            find_in_text("Mówca: Jerzy Sikora, modlitwa: Adam Szumorek", &known).as_deref(),
+            Some("Jerzy Sikora")
+        );
+        // ... but a known name mentioned first still wins
+        assert_eq!(
+            find_in_text("Adam Szumorek zaprasza. Zaprasza nas Kościół Wolny", &known).as_deref(),
+            Some("Adam Szumorek")
+        );
+        // a labelled known speaker gets the remembered spelling
+        assert_eq!(
+            find_in_text("Kazanie wygłosił Rafal Piekarski", &known).as_deref(),
+            Some("Rafał Piekarski")
+        );
+        // not part of another word
+        assert_eq!(find_in_text("Adam Szumorekowski", &known), None);
+        // other ways of introducing an unknown speaker
+        for (text, who) in [
+            ("Seria: Babilon\nMówca: Jan Nowak\nZapraszamy!", "Jan Nowak"),
+            ("Kaznodzieja - Ewa Kowalska (Łódź)", "Ewa Kowalska"),
+            (
+                "Kazanie wygłosił pastor Piotr Zieliński, zapraszamy",
+                "Piotr Zieliński",
+            ),
+            (
+                "Słowem podzielił się br. Anna Kowalska-Nowak.",
+                "Anna Kowalska-Nowak",
+            ),
+            (
+                "PTK // Poprowadził nas Jan Maria Rokita Nowak",
+                "Jan Maria Rokita",
+            ),
+        ] {
+            assert_eq!(find_in_text(text, &known).as_deref(), Some(who), "{text}");
+        }
+        // places, titles and references are not speakers
+        for text in [
+            "Kazanie: W Babilonie\nTomaszów Mazowiecki",
+            "Fragment: Księga Daniela 1:1-21\nData: 01.11.2026",
+            "Zaprasza nas Kościół w Łodzi",
+            "wprowadził nas Jerzy",
+            "wprowadził nas ŁDZ TOMY",
+            "",
+        ] {
+            assert_eq!(find_in_text(text, &known), None, "{text}");
+        }
     }
 
     #[test]

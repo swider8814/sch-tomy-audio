@@ -160,9 +160,52 @@ export function formatEta(seconds) {
 export function splitSuffix(suffix) {
   const s = String(suffix ?? "").trim();
   // same date forms as the backend: 2026.11.08, 2026-11-08, 08.11.2026, 08-11-2026
-  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{2}[.-]\d{2}|\d{2}[.-]\d{2}[.-]\d{4})$/.exec(s);
+  const m = /^(.*?)(?:\s*-\s*|\s+|^)(\d{4}[.-]\d{1,2}[.-]\d{1,2}|\d{1,2}[.-]\d{1,2}[.-]\d{4})$/.exec(s);
   if (m) return { name: m[1].trim().replace(/[-\s]+$/, ""), date: m[2] };
   return { name: s, date: "" };
+}
+
+/**
+ * A date typed by the user as "RRRR.MM.DD": accepts 2026.11.1, 2026-11-01,
+ * 1.11.2026, 01/11/2026. Empty text gives "", an invalid date gives null.
+ */
+export function normalDate(text) {
+  const s = String(text ?? "").trim();
+  if (!s) return "";
+  let m = /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/.exec(s);
+  let y, mo, d;
+  if (m) [, y, mo, d] = m;
+  else if ((m = /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/.exec(s))) [, d, mo, y] = m;
+  else return null;
+  const day = new Date(Date.UTC(+y, +mo - 1, +d));
+  // same year range as the backend's date parser (naming::date_from_name)
+  if (+y < 1900 || +y > 2099 || day.getUTCMonth() !== +mo - 1 || day.getUTCDate() !== +d) return null;
+  return `${y}.${String(mo).padStart(2, "0")}.${String(d).padStart(2, "0")}`;
+}
+
+/** "Adam Szumorek", "2026.10.11" -> "Adam Szumorek - 2026.10.11" (either may be empty). */
+export function joinSuffix(name, date) {
+  return [String(name ?? "").trim(), String(date ?? "").trim()].filter(Boolean).join(" - ");
+}
+
+/**
+ * Remembered speakers for the text typed so far: names whose first name or
+ * surname starts with it ("raf", "piek" and "Rafał Pi" all find "Rafał
+ * Piekarski"; case and Polish letters do not matter), those starting with
+ * it first. Empty text gives the whole list. The name typed exactly is left out.
+ */
+export function matchSpeakers(text, known, limit = 8) {
+  const q = fold(text);
+  if (!q) return known.slice();
+  const starts = [];
+  const words = [];
+  for (const name of known) {
+    const f = fold(name);
+    if (f === q) continue;
+    if (f.startsWith(q)) starts.push(name);
+    else if (f.split(" ").some((_, i, w) => w.slice(i).join(" ").startsWith(q))) words.push(name);
+  }
+  return [...starts, ...words].slice(0, limit);
 }
 
 /** Lower case, no Polish diacritics, single spaces. */

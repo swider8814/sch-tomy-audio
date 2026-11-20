@@ -47,6 +47,7 @@ fn main() {
             commands::rename_pattern,
             commands::save_settings,
             commands::start_all,
+            commands::start_job,
             commands::retry_job,
             commands::cancel_all,
             commands::cancel_job,

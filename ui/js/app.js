@@ -3,6 +3,7 @@
 import { formatDate, formatTime, maMaja, plNumber, plikow, startSourceLabel, STAGE_LABELS, STATUS_LABELS } from "./format.js";
 import { $, h, invoke, listen, toast, errorText, pickFiles, currentWebview, currentWindow, setupScrollHints, setupTooltips, tauriDialog, tauriOpener } from "./util.js";
 import { openEditor } from "./editor.js";
+import { attachSuggestions } from "./autocomplete.js";
 import { openSettings } from "./settings.js";
 import { checkForUpdate, openReleasePage } from "./update.js";
 import { applyTheme, effectiveTheme } from "./theme.js";
@@ -14,6 +15,9 @@ import {
   isBusy as busy,
   missingSermon,
   runFraction,
+  joinSuffix,
+  matchSpeakers,
+  normalDate,
   similarSpeaker,
   splitSuffix,
   startIsProposal,
@@ -171,29 +175,44 @@ function createRow(id) {
     placeholder: "Wpisz tytuł kazania",
     "aria-label": "Tytuł kazania",
   });
-  const suffix = h("input", {
-    class: "suffix-input",
+  const speaker = h("input", {
+    class: "speaker-input",
     type: "text",
-    maxlength: 200,
-    placeholder: "Kaznodzieja - RRRR.MM.DD",
-    "aria-label": "Kaznodzieja i data",
+    maxlength: 100,
+    placeholder: "Mówca",
+    "aria-label": "Mówca",
+  });
+  const date = h("input", {
+    class: "date-input",
+    type: "text",
+    maxlength: 10,
+    inputmode: "numeric",
+    placeholder: "RRRR.MM.DD",
+    "aria-label": "Data kazania (RRRR.MM.DD)",
   });
   const info = h("span", { class: "info-dot", tabindex: 0, role: "note" }, "i");
-  suffix.setAttribute("list", "speaker-list");
-  // Suggestions "Name - <this file's date>" for every remembered speaker.
-  const fillSuggestions = () => fillSpeakerList(splitSuffix(suffix.value).date);
-  suffix.addEventListener("focus", fillSuggestions);
-  suffix.addEventListener("input", fillSuggestions);
   const speakerHint = h("div", { class: "speaker-hint warn-text", hidden: true });
   const save = async () => {
+    const day = normalDate(date.value);
+    date.classList.toggle("invalid", day === null);
+    if (day === null) {
+      toast("Wpisz datę jako RRRR.MM.DD, na przykład 2026.11.01.");
+      return;
+    }
+    date.value = day;
+    const saving = invoke("set_title", { id, sermon: sermon.value, suffix: joinSuffix(speaker.value, day) });
+    pendingSaves.set(id, saving.catch(() => {}));
     try {
-      await invoke("set_title", { id, sermon: sermon.value, suffix: suffix.value });
+      await saving;
     } catch (e) {
       toast(errorText(e));
     }
   };
   sermon.addEventListener("change", save);
-  suffix.addEventListener("change", save);
+  speaker.addEventListener("change", save);
+  // remembered speakers, filtered while typing
+  attachSuggestions(speaker, (text) => matchSpeakers(text, app.speakers), save);
+  date.addEventListener("change", save);
   // Enter jumps to the title of the next visible file, so titles can be typed one after another.
   sermon.addEventListener("keydown", (ev) => {
     if (ev.key !== "Enter" || ev.isComposing) return;
@@ -213,7 +232,8 @@ function createRow(id) {
     tr: h("tr"),
     fileName,
     sermon,
-    suffix,
+    speaker,
+    date,
     info,
     speakerHint,
     start: h("td", { class: "c-start" }),
@@ -227,7 +247,7 @@ function createRow(id) {
       { class: "c-title" },
       fileName,
       sermon,
-      h("div", { class: "suffix-row" }, suffix, info),
+      h("div", { class: "suffix-row" }, speaker, date, info),
       speakerHint,
     ),
     r.start,
@@ -244,14 +264,21 @@ function updateRow(job) {
   r.fileName.textContent = job.fileName;
   r.fileName.title = job.path;
   if (document.activeElement !== r.sermon) r.sermon.value = job.sermonTitle ?? "";
-  if (document.activeElement !== r.suffix) r.suffix.value = job.titleSuffix ?? "";
+  const parts = splitSuffix(job.titleSuffix);
+  if (document.activeElement !== r.speaker) r.speaker.value = parts.name;
+  if (document.activeElement !== r.date) {
+    r.date.value = normalDate(parts.date) || parts.date;
+    r.date.classList.remove("invalid");
+  }
   r.sermon.disabled = busy(job);
-  r.suffix.disabled = busy(job);
-  r.sermon.classList.toggle(
-    "missing",
-    missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
-  );
-  const tip = ["Kaznodzieja i data, odczytane z nazwy pliku. Możesz je poprawić."];
+  r.speaker.disabled = busy(job);
+  r.date.disabled = busy(job);
+  const editable = !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path);
+  r.sermon.classList.toggle("missing", editable && missingSermon(job));
+  r.speaker.classList.toggle("missing", editable && !parts.name);
+  r.date.classList.toggle("missing", editable && !parts.date);
+  const from = job.sourceUrl ? "z opisu filmu na YouTube" : "z nazwy pliku";
+  const tip = [`Mówca i data, odczytane ${from}. Możesz je poprawić, mówcę wybierzesz też z listy.`];
   if (job.status !== "downloading") {
     tip.push(`Tytuł w tagach MP3: ${job.title || "(pusty)"}`);
     if (job.status !== "done" && job.outputName) tip.push(`Nazwa pliku: ${job.outputName}`);
@@ -376,10 +403,28 @@ function updateRow(job) {
   }
 
   // actions
+  const startable = (job.status === "waiting" || job.status === "cancelled") && !!job.path;
   r.actions.replaceChildren(
-    busy(job)
-      ? h("button", { type: "button", class: "small danger", onclick: () => invoke("cancel_job", { id: job.id }) }, "Anuluj")
-      : h("button", { type: "button", class: "small", onclick: () => invoke("remove_job", { id: job.id }), title: "Usuń z listy (plik zostaje na dysku)" }, "Usuń"),
+    h(
+      "div",
+      { class: "row-actions" },
+      startable
+        ? h(
+            "button",
+            {
+              type: "button",
+              class: "small",
+              disabled: !!app.toolsError,
+              onclick: () => startOne(job.id),
+              title: "Przetwórz tylko ten plik",
+            },
+            "Przetwórz",
+          )
+        : null,
+      busy(job)
+        ? h("button", { type: "button", class: "small danger", onclick: () => invoke("cancel_job", { id: job.id }) }, "Anuluj")
+        : h("button", { type: "button", class: "small", onclick: () => invoke("remove_job", { id: job.id }), title: "Usuń z listy (plik zostaje na dysku)" }, "Usuń"),
+    ),
   );
 }
 
@@ -455,7 +500,7 @@ function finishRun() {
     ? `Gotowe: ${done} ${plikow(done)}. Z błędem: ${failed} ${plikow(failed)}.`
     : `Gotowe: ${done} ${plikow(done)}. Pliki MP3 czekają w folderze wyników.`;
   toast(body, 6000);
-  if (app.settings?.notify_done && !document.hasFocus()) notify("Obróbka zakończona", body);
+  if (app.settings?.notify_done) notify("Obróbka zakończona", body);
 }
 
 async function notify(title, body) {
@@ -479,22 +524,21 @@ async function askNotifyPermission() {
 
 // --------------------------------------------------------------- speakers
 
-/** Fills the shared <datalist> with "Name - date" for every remembered speaker. */
-function fillSpeakerList(date) {
-  const list = $("#speaker-list");
-  list.replaceChildren(...app.speakers.map((n) => h("option", { value: date ? `${n} - ${date}` : n })));
-}
-
 /** Warns under the speaker field when the name looks like a misspelling of a known one. */
 function renderSpeakerHint(r, job) {
-  const editable = job.status === "waiting" || job.status === "cancelled" || job.status === "error";
+  // whenever the fields can be edited (also while the start is still being analysed)
+  const editable = !busy(job) && job.status !== "done";
   const { name, date } = splitSuffix(job.titleSuffix);
-  const match = editable ? similarSpeaker(name, app.speakers) : null;
+  let match = editable ? similarSpeaker(name, app.speakers) : null;
+  // the typed name is itself on the list (e.g. a typo remembered by an older
+  // version), next to a similar spelling: show the other one too
+  const twin = editable && !match ? similarSpeaker(name, app.speakers.filter((n) => n !== name.trim())) : null;
+  match = match ?? twin;
   r.speakerHint.hidden = !match;
   if (!match) return;
-  const fixed = date ? `${match} - ${date}` : match;
+  const fixed = joinSuffix(match, date);
   r.speakerHint.replaceChildren(
-    `Czy chodziło o: ${match}? `,
+    twin ? `Na liście mówców jest też: ${match}. Która pisownia jest dobra? ` : `Czy chodziło o: ${match}? `,
     h(
       "button",
       {
@@ -508,7 +552,7 @@ function renderSpeakerHint(r, job) {
           }
         },
       },
-      "Popraw",
+      twin ? "Użyj tej" : "Popraw",
     ),
   );
 }
@@ -674,6 +718,34 @@ async function chooseFiles() {
   await addPaths(paths);
 }
 
+/** Asks before processing files without a sermon title; true to go on. */
+async function confirmNoTitle(n) {
+  if (!n) return true;
+  return tauriDialog().ask(
+    `${n} ${plikow(n)} nie ${maMaja(n)} tytułu kazania. W tagach MP3 zostanie wtedy tylko mówca i data. Przetworzyć mimo to?`,
+    { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
+  );
+}
+
+/** Title saves still on their way to the backend, by job id. */
+const pendingSaves = new Map();
+
+/** "Przetwórz" next to one file. */
+async function startOne(id) {
+  // the title may have been typed a moment ago: decide on what is in the field
+  // and let its save reach the backend first
+  const sermon = rows.get(id)?.sermon.value;
+  await pendingSaves.get(id);
+  const job = app.jobs.get(id);
+  const missing = sermon != null ? !sermon.trim() : job && missingSermon(job);
+  if (!job || !(await confirmNoTitle(missing ? 1 : 0))) return;
+  try {
+    if (await invoke("start_job", { id })) askNotifyPermission();
+  } catch (e) {
+    toast(errorText(e));
+  }
+}
+
 async function retry(id) {
   try {
     await invoke("retry_job", { id });
@@ -753,13 +825,7 @@ function setupButtons() {
   });
   $("#btn-start").addEventListener("click", async () => {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;
-    if (noTitle) {
-      const ok = await tauriDialog().ask(
-        `${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania. W tagach MP3 zostanie wtedy tylko kaznodzieja i data. Przetworzyć mimo to?`,
-        { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
-      );
-      if (!ok) return;
-    }
+    if (!(await confirmNoTitle(noTitle))) return;
     const n = await invoke("start_all");
     if (n) {
       toast(`Rozpoczęto obróbkę: ${n} ${plikow(n)}.`);

@@ -19,7 +19,6 @@
     </header>
 
     <div id="banners" aria-live="polite"></div>
-    <datalist id="speaker-list"></datalist>
 
     <div id="drop-overlay" hidden aria-hidden="true">
       <div class="drop-overlay-box">
@@ -77,7 +76,7 @@
             <li><b>Dodaj nagrania.</b> Przeciągnij pliki w dowolne miejsce okna, kliknij „Wybierz pliki” albo „Pobierz z YouTube”.</li>
             <li>
               <b>Sprawdź początek i wpisz tytuł.</b> Aplikacja sama szuka początku kazania. Gdy ma tylko propozycję,
-              kliknij „Sprawdź początek”. Kaznodzieję i datę odczyta z nazwy pliku.
+              kliknij „Sprawdź początek”. Mówcę i datę odczyta z nazwy pliku.
             </li>
             <li>
               <b>Kliknij „Przetwórz wszystkie”.</b> Gotowe pliki MP3 pojawią się obok oryginałów albo w folderze wybranym w
@@ -253,7 +252,7 @@
               <span class="path" data-path></span>
               <button type="button" data-choose>Wybierz folder</button>
             </div>
-            <p class="hint">Gotowy plik dostaje nazwę z daty, tytułu i kaznodziei, np. 2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3. Oryginał nigdy nie jest nadpisywany.</p>
+            <p class="hint">Gotowy plik dostaje nazwę z daty, tytułu i mówcy, np. 2026-10-11-co-mi-wolno-adam-szumorek-podcast.mp3. Oryginał nigdy nie jest nadpisywany.</p>
           </fieldset>
 
           <fieldset>
@@ -280,7 +279,11 @@
 
           <fieldset>
             <legend>Powiadomienia</legend>
-            <label class="inline"><input name="notify_done" type="checkbox" /> Pokaż powiadomienie, gdy obróbka wszystkich plików się skończy (gdy okno aplikacji nie jest na wierzchu)</label>
+            <label class="inline"><input name="notify_done" type="checkbox" /> Pokaż powiadomienie, gdy obróbka wszystkich plików się skończy</label>
+            <div class="update-row">
+              <button type="button" id="notify-test">Pokaż przykładowe powiadomienie</button>
+              <span id="notify-status" class="hint" role="status"></span>
+            </div>
           </fieldset>
 
           <fieldset>
@@ -397,10 +400,10 @@
           </fieldset>
 
           <fieldset>
-            <legend>Zapamiętani kaznodzieje</legend>
-            <p class="hint">Aplikacja zapamiętuje kaznodziejów z gotowych odcinków i podpowiada ich w polu „Kaznodzieja i data”. Jeśli na liście jest literówka, usuń ją.</p>
+            <legend>Zapamiętani mówcy</legend>
+            <p class="hint">Aplikacja zapamiętuje mówców z gotowych odcinków i podpowiada ich w polu „Mówca”. Jeśli na liście jest literówka, usuń ją.</p>
             <details class="speaker-import">
-              <summary>Dodaj listę kaznodziei</summary>
+              <summary>Dodaj listę mówców</summary>
               <p class="hint">Wklej nazwiska, np. skopiowane ze strony kościoła, każde w osobnym wierszu (w formie „Imię Nazwisko”), albo wczytaj plik .txt. Powtórzone nazwiska i puste wiersze zostaną pominięte.</p>
               <textarea id="speaker-text" rows="5" placeholder="Adam Szumorek&#10;Rafał Piekarski"></textarea>
               <div class="update-row">
@@ -414,7 +417,7 @@
 
           <fieldset>
             <legend>Przeniesienie na inny komputer</legend>
-            <p class="hint">Zapisz ustawienia do jednego pliku i wczytaj go na drugim komputerze. W pliku są intro, outro, okładka, zajawki serii, zapamiętani kaznodzieje i pozostałe ustawienia. Foldery (na gotowe pliki, na nagrania z YouTube, obserwowany) zostają takie, jak na danym komputerze.</p>
+            <p class="hint">Zapisz ustawienia do jednego pliku i wczytaj go na drugim komputerze. W pliku są intro, outro, okładka, zajawki serii, zapamiętani mówcy i pozostałe ustawienia. Foldery (na gotowe pliki, na nagrania z YouTube, obserwowany) zostają takie, jak na danym komputerze.</p>
             <div class="update-row">
               <button type="button" id="bundle-export">Zapisz ustawienia do pliku</button>
               <button type="button" id="bundle-import">Wczytaj ustawienia z pliku</button>
