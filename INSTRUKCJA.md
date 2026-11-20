@@ -93,7 +93,7 @@ Kliknij **Zapisz**. Ustawienia zostaną zapamiętane.
 
    W trakcie obróbki nad listą widać, ile plików jest gotowych i mniej więcej ile czasu zostało do końca.
 
-Lista plików jest zapamiętywana: po zamknięciu i ponownym otwarciu aplikacji pliki wracają na listę (pliki przerwane w trakcie obróbki czekają na ponowne **Przetwórz wszystkie**, a przerwane pobieranie z YouTube wznowi się samo). Podczas obróbki i pobierania aplikacja nie pozwala komputerowi zasnąć.
+Lista plików jest zapamiętywana: po zamknięciu i ponownym otwarciu aplikacji pliki wracają na listę (pliki przerwane w trakcie obróbki czekają na ponowne **Przetwórz wszystkie**, a przerwane pobieranie z YouTube wznowi się samo). Podczas obróbki i pobierania aplikacja nie pozwala komputerowi zasnąć. Aplikacja zapamiętuje też miejsce i rozmiar okna: otworzy się tam, gdzie była przy zamknięciu (jeśli tamten ekran jest nadal podłączony).
 
 Znak ⚠ przy wyniku oznacza, że głośność odbiega od celu o więcej niż 0,5 LU. Plik jest zapisany, ale warto go odsłuchać.
 
