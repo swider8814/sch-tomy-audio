@@ -690,7 +690,7 @@ pub fn add_speakers(app: AppHandle, state: St<'_>, text: String) -> SpeakersAdde
     }
 }
 
-/// Removes a remembered speaker name (settings, "Zapamiętani kaznodzieje").
+/// Removes a remembered speaker name (settings, "Zapamiętani mówcy").
 #[tauri::command]
 pub fn remove_speaker(app: AppHandle, state: St<'_>, name: String) -> Vec<String> {
     let mut g = state.lock();

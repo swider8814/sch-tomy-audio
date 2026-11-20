@@ -1,4 +1,4 @@
-//! Remembered speaker (preacher) names, suggested in the "Kaznodzieja i
+//! Remembered speaker (preacher) names, suggested in the "Mówca i
 //! data" field so the same person is always spelled the same way.
 //!
 //! Names are taken from finished episodes. The list is kept in a small JSON
@@ -12,7 +12,7 @@ pub const MAX_SPEAKERS: usize = 300;
 /// Longest accepted name, in characters.
 pub const MAX_NAME_CHARS: usize = 100;
 
-/// Speaker part of a title suffix "Kaznodzieja - RRRR.MM.DD": the text before
+/// Speaker part of a title suffix "Mówca - RRRR.MM.DD": the text before
 /// a trailing date (separated by " - " or a space). `None` when nothing is
 /// left or the text has no letters.
 pub fn speaker_of(suffix: &str) -> Option<String> {

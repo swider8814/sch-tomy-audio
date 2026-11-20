@@ -236,7 +236,7 @@ async function importBundle() {
   });
   if (!path) return;
   const ok = await tauriDialog().ask(
-    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i kaznodzieje zostaną dodane do obecnych. Foldery zostaną bez zmian.",
+    "Wczytać ustawienia z tego pliku? Intro, outro, okładka i pozostałe ustawienia zostaną zastąpione. Zajawki serii i mówców aplikacja doda do obecnych. Foldery zostaną bez zmian.",
     { title: "Wczytywanie ustawień", kind: "warning", okLabel: "Wczytaj", cancelLabel: "Anuluj" },
   );
   if (!ok) return;
@@ -255,7 +255,7 @@ async function importBundle() {
     if (files.length) parts.push(`Pliki: ${files.join(", ")}.`);
     parts.push(`Nowe zajawki: ${s.patternsAdded}.`);
     if (s.patternsSkipped) parts.push(`Pominięte (już są): ${s.patternsSkipped}.`);
-    parts.push(`Nowi kaznodzieje: ${s.speakersAdded}.`);
+    parts.push(`Nowi mówcy: ${s.speakersAdded}.`);
     status.textContent = parts.join(" ");
   } catch (e) {
     status.textContent = errorText(e);
@@ -266,7 +266,7 @@ function renderSpeakers() {
   const ul = $("#speaker-settings-list");
   ul.replaceChildren();
   if (!app.speakers.length) {
-    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Kaznodzieje pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
+    ul.append(h("li", { class: "hint" }, "Lista jest pusta. Mówcy pojawią się tu po przetworzeniu pierwszych odcinków albo po dodaniu listy powyżej."));
     return;
   }
   for (const name of app.speakers) {
@@ -349,7 +349,7 @@ function setup() {
   $("#speaker-add").addEventListener("click", addSpeakers);
   $("#speaker-file").addEventListener("click", async () => {
     const [p] = await pickFiles({
-      title: "Wczytaj listę kaznodziei",
+      title: "Wczytaj listę mówców",
       filters: [{ name: "Plik tekstowy", extensions: ["txt", "csv"] }],
     });
     if (!p) return;

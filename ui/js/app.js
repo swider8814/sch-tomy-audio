@@ -175,8 +175,8 @@ function createRow(id) {
     class: "suffix-input",
     type: "text",
     maxlength: 200,
-    placeholder: "Kaznodzieja - RRRR.MM.DD",
-    "aria-label": "Kaznodzieja i data",
+    placeholder: "Mówca - RRRR.MM.DD",
+    "aria-label": "Mówca i data",
   });
   const info = h("span", { class: "info-dot", tabindex: 0, role: "note" }, "i");
   suffix.setAttribute("list", "speaker-list");
@@ -251,7 +251,7 @@ function updateRow(job) {
     "missing",
     missingSermon(job) && !["done", "processing", "queued", "downloading"].includes(job.status) && !(job.sourceUrl && !job.path),
   );
-  const tip = ["Kaznodzieja i data, odczytane z nazwy pliku. Możesz je poprawić."];
+  const tip = ["Mówca i data, odczytane z nazwy pliku. Możesz je poprawić."];
   if (job.status !== "downloading") {
     tip.push(`Tytuł w tagach MP3: ${job.title || "(pusty)"}`);
     if (job.status !== "done" && job.outputName) tip.push(`Nazwa pliku: ${job.outputName}`);
@@ -755,7 +755,7 @@ function setupButtons() {
     const noTitle = [...app.jobs.values()].filter((j) => ["waiting", "cancelled"].includes(j.status) && missingSermon(j)).length;
     if (noTitle) {
       const ok = await tauriDialog().ask(
-        `${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania. W tagach MP3 zostanie wtedy tylko kaznodzieja i data. Przetworzyć mimo to?`,
+        `${noTitle} ${plikow(noTitle)} nie ${maMaja(noTitle)} tytułu kazania. W tagach MP3 zostanie wtedy tylko mówca i data. Przetworzyć mimo to?`,
         { title: "Brak tytułu kazania", kind: "warning", okLabel: "Przetwórz", cancelLabel: "Wróć i uzupełnij" },
       );
       if (!ok) return;
